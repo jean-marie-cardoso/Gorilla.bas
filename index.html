@@ -256,7 +256,7 @@ function show_infobox() {
             top: 0 !important;
             right: auto !important;
             bottom: auto !important;
-            width: var(--app-width, 100vw) !important;
+            width: 100vw !important;
             height: var(--app-height, 100dvh) !important;
             max-width: none !important;
             max-height: none !important;
@@ -408,16 +408,15 @@ frameborder="1"
     function visible_viewport_size() {
         const vv = window.visualViewport;
         return {
-            width: Math.max(1, Math.round(vv ? vv.width : window.innerWidth)),
+            width: Math.max(1, Math.round(window.innerWidth)),
             height: Math.max(1, Math.round(vv ? vv.height : window.innerHeight))
         };
     }
 
     function sync_visible_viewport() {
         const size = visible_viewport_size();
-        document.documentElement.style.setProperty("--app-width", size.width + "px");
         document.documentElement.style.setProperty("--app-height", size.height + "px");
-        document.body.style.width = size.width + "px";
+        document.body.style.width = "100vw";
         document.body.style.height = size.height + "px";
         return size;
     }
@@ -431,7 +430,7 @@ frameborder="1"
         canvas.style.top = "0";
         canvas.style.right = "auto";
         canvas.style.bottom = "auto";
-        canvas.style.width = size.width + "px";
+        canvas.style.width = "100vw";
         canvas.style.height = size.height + "px";
         canvas.style.maxWidth = "none";
         canvas.style.maxHeight = "none";
