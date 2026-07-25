@@ -159,6 +159,11 @@ class RuntimeSmokeTests(unittest.TestCase):
             strong=True,
         )
         self.assertTrue(self.game.city._smoke_plumes)
+        self.assertTrue(self.game.city._debris_particles)
+        self.assertGreater(
+            self.game.city._smoke_plumes[-1]["duration"],
+            6.0,
+        )
         self.game.city.draw_damage_effects(self.game.vsurf, 2.5)
 
     def test_menu_and_aim_accept_keyboard(self):

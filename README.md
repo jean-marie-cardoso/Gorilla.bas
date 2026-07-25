@@ -36,8 +36,9 @@ s'éteignent, silhouettes derrière les vitres et balises d'antenne.
 Pendant une revanche, le vainqueur précédent porte une petite couronne.
 Les villes alternent entre New York, Paris, Tokyo, bord de mer et Néo-City,
 avec leurs propres silhouettes et objets de toit destructibles.
-Les impacts laissent fumée, débris et parfois une banane plantée. Les gorilles
-respirent, clignent des yeux, rient des ratés et paniquent lors d'un tir proche.
+Les impacts laissent un gros cratère, une fumée persistante et des débris.
+La banane disparaît dès l'impact. Les gorilles respirent, bougent, clignent des
+yeux, rient clairement des ratés et paniquent lors d'un tir proche.
 La tempête possède éclairs, éclairage des façades et tonnerre. Le téléphone
 vibre au tir et à l'explosion. Le tir gagnant est rejoué au ralenti.
 

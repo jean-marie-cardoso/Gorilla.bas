@@ -271,8 +271,9 @@ BUILDING_THEMES = {
 CITY_STYLES = {
     "new_york": {
         "label": "NEW YORK",
+        "tagline": "GRATTE-CIEL • EMPIRE STATE",
         "count": (14, 18),
-        "height": (90, 248),
+        "height": (112, 272),
         "roofs": ("antenna", "tank", "billboard", "lip"),
         "trim": (0, 1, 2),
         "tint": (54, 66, 91),
@@ -280,8 +281,9 @@ CITY_STYLES = {
     },
     "paris": {
         "label": "PARIS",
+        "tagline": "MANSARDES • TOUR EIFFEL",
         "count": (15, 20),
-        "height": (72, 190),
+        "height": (76, 148),
         "roofs": ("mansard", "chimney", "mansard", "lip"),
         "trim": (1, 1, 0),
         "tint": (122, 91, 91),
@@ -289,6 +291,7 @@ CITY_STYLES = {
     },
     "tokyo": {
         "label": "TOKYO",
+        "tagline": "NÉONS • TOUR DE TOKYO",
         "count": (14, 19),
         "height": (86, 232),
         "roofs": ("neon", "antenna", "billboard", "tank"),
@@ -298,8 +301,9 @@ CITY_STYLES = {
     },
     "seaside": {
         "label": "BORD DE MER",
+        "tagline": "OCÉAN • PHARE • PALMIERS",
         "count": (12, 17),
-        "height": (58, 158),
+        "height": (54, 112),
         "roofs": ("solar", "chimney", "lip", "tank"),
         "trim": (0, 1, 1),
         "tint": (145, 126, 118),
@@ -307,8 +311,9 @@ CITY_STYLES = {
     },
     "future": {
         "label": "NÉO-CITY",
+        "tagline": "DÔMES • PASSERELLES • NÉONS",
         "count": (13, 18),
-        "height": (92, 242),
+        "height": (104, 260),
         "roofs": ("dome", "dish", "antenna", "neon"),
         "trim": (2, 2, 0),
         "tint": (47, 79, 111),
@@ -388,7 +393,7 @@ class City:
         self._living_windows = []
         self._antenna_lights = []
         self._smoke_plumes = []
-        self._stuck_bananas = []
+        self._debris_particles = []
         self._damage_revision = 0
         self._life_checked_revision = -1
         self._banana_trail = []
@@ -400,6 +405,10 @@ class City:
     @property
     def city_style_label(self):
         return CITY_STYLES[self.city_style_name]["label"]
+
+    @property
+    def city_style_tagline(self):
+        return CITY_STYLES[self.city_style_name]["tagline"]
 
     @property
     def atmosphere_label(self):
@@ -483,7 +492,7 @@ class City:
         self._generation += 1
         self._banana_trail.clear()
         self._smoke_plumes.clear()
-        self._stuck_bananas.clear()
+        self._debris_particles.clear()
         choices = [
             name
             for name in ATMOSPHERE_NAMES
@@ -521,11 +530,25 @@ class City:
 
         heights = []
         previous = None
-        for _ in widths:
+        for index, _ in enumerate(widths):
             height = rng.randint(*city_settings["height"])
             if previous is not None and abs(height - previous) < 18:
                 low, high = city_settings["height"]
                 height = max(low, min(high, height + rng.choice((-28, 28))))
+            distance_to_center = abs(index - (len(widths) - 1) / 2)
+            if self.city_style_name == "new_york" and distance_to_center < 1.2:
+                height = max(height, city_settings["height"][1] - 8)
+            elif self.city_style_name == "paris":
+                height = min(
+                    city_settings["height"][1],
+                    105 + rng.randint(-16, 24),
+                )
+            elif self.city_style_name == "tokyo" and index % 5 == 2:
+                height = max(height, 205)
+            elif self.city_style_name == "seaside":
+                height = min(height, 96 + (index % 3) * 7)
+            elif self.city_style_name == "future" and index % 4 == 1:
+                height = max(height, 224)
             heights.append(height)
             previous = height
 
@@ -571,7 +594,13 @@ class City:
                 {
                     "color": styled_color,
                     "palette_slot": palette_slot,
-                    "roof": rng.choice(city_settings["roofs"]),
+                    "roof": (
+                        "mansard"
+                        if self.city_style_name == "paris" and index % 3 != 2
+                        else "neon"
+                        if self.city_style_name == "tokyo" and index % 3 == 1
+                        else rng.choice(city_settings["roofs"])
+                    ),
                     "windows": windows,
                     "trim": rng.choice(city_settings["trim"]),
                 }
@@ -735,20 +764,43 @@ class City:
 
     def add_damage_effect(self, center, scene_time, strong=False):
         cx, cy = int(center[0]), int(center[1])
+        seed = (cx * 31 + cy * 17) % 97
         self._smoke_plumes.append(
             {
                 "x": cx,
                 "y": cy,
                 "start": float(scene_time),
-                "duration": 3.2 if strong else 2.4,
-                "seed": (cx * 31 + cy * 17) % 97,
+                "duration": 8.0 if strong else 6.2,
+                "seed": seed,
+                "strong": bool(strong),
             }
         )
         self._smoke_plumes = self._smoke_plumes[-6:]
+        chunk_count = 24 if strong else 16
+        for index in range(chunk_count):
+            angle = math.radians(205 + ((index * 137 + seed) % 130))
+            speed = (38 if strong else 29) + (index % 6) * 8
+            self._debris_particles.append(
+                {
+                    "x": cx,
+                    "y": cy,
+                    "vx": math.cos(angle) * speed,
+                    "vy": math.sin(angle) * speed - 22,
+                    "start": float(scene_time),
+                    "duration": 1.8 if strong else 1.35,
+                    "size": 4 + index % 5,
+                    "color": (
+                        (76, 52, 68)
+                        if index % 3
+                        else (232, 111, 55)
+                    ),
+                }
+            )
+        self._debris_particles = self._debris_particles[-80:]
 
     def draw_damage_effects(self, surface, scene_time):
-        """Fumée légère après impact, dessinée sans asset."""
-        if not self._smoke_plumes:
+        """Fumée épaisse et gros débris après impact."""
+        if not self._smoke_plumes and not self._debris_particles:
             return
         alive = []
         layer = pygame.Surface((VIRTUAL_W, VIRTUAL_H), pygame.SRCALPHA)
@@ -758,19 +810,81 @@ class City:
                 continue
             alive.append(plume)
             progress = age / plume["duration"]
-            alpha = int(145 * (1.0 - progress))
-            for index in range(5):
-                phase = plume["seed"] + index * 1.7
-                x = plume["x"] + math.sin(age * 1.5 + phase) * (4 + index)
-                y = plume["y"] - age * (11 + index * 2) - index * 4
-                radius = 4 + index + int(progress * 4)
+            alpha = int(225 * (1.0 - progress) ** 0.65)
+            puff_count = 10 if plume["strong"] else 8
+            smoke_color = (
+                (83, 86, 98)
+                if self.atmosphere_name in ("night", "rain", "storm")
+                else (55, 54, 62)
+            )
+            smoke_highlight = (
+                (156, 157, 166)
+                if self.atmosphere_name in ("night", "rain", "storm")
+                else (116, 111, 117)
+            )
+            for index in range(puff_count):
+                phase = plume["seed"] + index * 1.9
+                x = plume["x"] + math.sin(age * 1.2 + phase) * (6 + index)
+                y = plume["y"] - age * (8 + index * 0.8) - index * 5
+                radius = 7 + index % 4 * 2 + int(progress * 7)
+                puff_alpha = max(0, alpha - index * 8)
                 pygame.draw.circle(
                     layer,
-                    (44, 39, 56, max(0, alpha - index * 12)),
+                    (*smoke_color, puff_alpha),
                     (int(x), int(y)),
                     radius,
                 )
+                pygame.draw.circle(
+                    layer,
+                    (*smoke_highlight, puff_alpha // 2),
+                    (int(x - radius * 0.25), int(y - radius * 0.25)),
+                    max(2, radius // 2),
+                )
+            if age < 0.9:
+                glow_alpha = int(190 * (1.0 - age / 0.9))
+                pygame.draw.circle(
+                    layer,
+                    (255, 115, 47, glow_alpha),
+                    (plume["x"], plume["y"]),
+                    8 + int(age * 8),
+                    2,
+                )
+            if age < 4.5:
+                rubble_alpha = int(235 * (1.0 - age / 4.5))
+                for index in range(9):
+                    angle = index * math.tau / 9.0 + plume["seed"] * 0.03
+                    distance = 25 + index % 3 * 5
+                    chip_x = plume["x"] + math.cos(angle) * distance
+                    chip_y = plume["y"] + math.sin(angle) * distance
+                    size = 3 + index % 3
+                    chip_color = (
+                        (234, 111, 55, rubble_alpha)
+                        if index % 4 == 0
+                        else (82, 61, 72, rubble_alpha)
+                    )
+                    pygame.draw.rect(
+                        layer,
+                        chip_color,
+                        (int(chip_x), int(chip_y), size, size),
+                    )
         self._smoke_plumes = alive
+
+        debris_alive = []
+        for chunk in self._debris_particles:
+            age = scene_time - chunk["start"]
+            if age < 0 or age >= chunk["duration"]:
+                continue
+            debris_alive.append(chunk)
+            x = chunk["x"] + chunk["vx"] * age
+            y = chunk["y"] + chunk["vy"] * age + 55 * age * age
+            fade = max(0.0, 1.0 - age / chunk["duration"])
+            size = chunk["size"]
+            pygame.draw.rect(
+                layer,
+                (*chunk["color"], int(255 * fade)),
+                (int(x) - size // 2, int(y) - size // 2, size, size),
+            )
+        self._debris_particles = debris_alive
         surface.blit(layer, (0, 0))
 
     def storm_flash_active(self, scene_time):
@@ -800,21 +914,33 @@ class City:
             ((35, 25, 64), (22, 18, 47), (231, 133, 95)),
         )
         if self.city_style_name == "seaside":
-            pygame.draw.rect(self._far_layer, (*base, 150), (0, 305, VIRTUAL_W, 50))
-            for yy in range(309, 352, 8):
-                pygame.draw.line(
-                    self._far_layer,
-                    (*light, 70),
-                    (0, yy),
-                    (VIRTUAL_W, yy),
-                    1,
-                )
+            water = _lerp_color(base, (49, 157, 191), 0.62)
+            water_light = _lerp_color(water, (214, 245, 250), 0.62)
+            pygame.draw.rect(
+                self._far_layer,
+                (*water, 225),
+                (0, 218, VIRTUAL_W, 138),
+            )
+            for yy in range(224, 352, 9):
+                offset = (yy // 9 % 2) * 18
+                for xx in range(-offset, VIRTUAL_W, 52):
+                    pygame.draw.line(
+                        self._far_layer,
+                        (*water_light, 105),
+                        (xx, yy),
+                        (min(VIRTUAL_W, xx + 27), yy),
+                        2,
+                    )
 
         x = -8
         index = 0
         while x < VIRTUAL_W:
             width = rng.randint(18, 42)
-            height = rng.randint(42, 122)
+            height = (
+                rng.randint(22, 54)
+                if self.city_style_name == "seaside"
+                else rng.randint(42, 122)
+            )
             bottom = 356
             rect = pygame.Rect(x, bottom - height, width, height)
             color = (
@@ -846,106 +972,205 @@ class City:
             x += width + rng.randint(2, 7)
             index += 1
 
-        landmark_x = int(VIRTUAL_W * 0.52)
-        if self.city_style_name == "seaside":
-            pygame.draw.rect(
-                self._far_layer,
-                (*base, 205),
-                (0, 326, VIRTUAL_W, 28),
-            )
-            for yy in range(330, 353, 7):
-                pygame.draw.line(
-                    self._far_layer,
-                    (*light, 105),
-                    (0, yy),
-                    (VIRTUAL_W, yy),
-                    2,
-                )
+        landmark_x = int(VIRTUAL_W * 0.62)
         if self.city_style_name == "paris":
+            tower = (91, 62, 66, 255)
             pygame.draw.line(
                 self._far_layer,
-                (*shadow, 235),
-                (landmark_x, 210),
-                (landmark_x - 25, 354),
-                4,
+                tower,
+                (landmark_x, 104),
+                (landmark_x - 48, 354),
+                7,
             )
             pygame.draw.line(
                 self._far_layer,
-                (*shadow, 235),
-                (landmark_x, 210),
-                (landmark_x + 25, 354),
-                4,
+                tower,
+                (landmark_x, 104),
+                (landmark_x + 48, 354),
+                7,
             )
-            for yy, width in ((255, 16), (298, 28), (338, 42)):
+            pygame.draw.line(
+                self._far_layer,
+                (*light, 210),
+                (landmark_x, 92),
+                (landmark_x, 116),
+                3,
+            )
+            for yy, width in ((168, 20), (231, 45), (296, 70), (344, 96)):
                 pygame.draw.line(
                     self._far_layer,
-                    (*shadow, 235),
+                    tower,
                     (landmark_x - width // 2, yy),
                     (landmark_x + width // 2, yy),
-                    3,
+                    5,
                 )
         elif self.city_style_name == "tokyo":
-            pygame.draw.polygon(
+            tower_red = (240, 75, 82, 245)
+            pygame.draw.line(
                 self._far_layer,
-                (*shadow, 235),
-                [
-                    (landmark_x, 198),
-                    (landmark_x - 13, 354),
-                    (landmark_x + 13, 354),
-                ],
+                tower_red,
+                (landmark_x, 90),
+                (landmark_x - 34, 354),
+                6,
             )
-            for yy in range(230, 340, 22):
+            pygame.draw.line(
+                self._far_layer,
+                tower_red,
+                (landmark_x, 90),
+                (landmark_x + 34, 354),
+                6,
+            )
+            for yy, width in ((143, 14), (195, 28), (256, 45), (322, 61)):
                 pygame.draw.line(
                     self._far_layer,
-                    (*light, 125),
-                    (landmark_x - 7, yy),
-                    (landmark_x + 7, yy),
-                    2,
+                    (242, 233, 206, 230),
+                    (landmark_x - width // 2, yy),
+                    (landmark_x + width // 2, yy),
+                    4,
                 )
+            for offset, neon in (
+                (-112, (255, 68, 171, 220)),
+                (96, (60, 232, 242, 220)),
+            ):
+                sign = pygame.Rect(landmark_x + offset, 156, 30, 74)
+                pygame.draw.rect(self._far_layer, neon, sign, 3)
+                for yy in range(sign.top + 9, sign.bottom - 4, 12):
+                    pygame.draw.line(
+                        self._far_layer,
+                        neon,
+                        (sign.left + 7, yy),
+                        (sign.right - 7, yy),
+                        3,
+                    )
         elif self.city_style_name == "future":
+            neon = (73, 232, 242, 205)
             pygame.draw.ellipse(
                 self._far_layer,
-                (*base, 230),
-                (landmark_x - 48, 282, 96, 72),
+                (*base, 245),
+                (landmark_x - 78, 190, 156, 164),
             )
             pygame.draw.arc(
                 self._far_layer,
-                (*light, 135),
-                (landmark_x - 48, 282, 96, 72),
+                neon,
+                (landmark_x - 78, 190, 156, 164),
                 math.pi,
                 math.tau,
-                3,
+                5,
+            )
+            pygame.draw.ellipse(
+                self._far_layer,
+                neon,
+                (landmark_x - 54, 218, 108, 42),
+                4,
+            )
+            pygame.draw.line(
+                self._far_layer,
+                neon,
+                (landmark_x, 112),
+                (landmark_x, 240),
+                4,
             )
         elif self.city_style_name == "seaside":
-            pygame.draw.circle(
+            lighthouse_x = landmark_x + 70
+            pygame.draw.polygon(
                 self._far_layer,
-                (*shadow, 205),
-                (landmark_x, 291),
-                28,
-                3,
+                (239, 230, 205, 245),
+                [
+                    (lighthouse_x - 12, 330),
+                    (lighthouse_x - 7, 234),
+                    (lighthouse_x + 7, 234),
+                    (lighthouse_x + 12, 330),
+                ],
             )
-            for angle in range(0, 360, 45):
-                radians = math.radians(angle)
-                pygame.draw.line(
-                    self._far_layer,
-                    (*shadow, 190),
-                    (landmark_x, 291),
-                    (
-                        landmark_x + int(math.cos(radians) * 27),
-                        291 + int(math.sin(radians) * 27),
-                    ),
-                    1,
-                )
-        else:
             pygame.draw.rect(
                 self._far_layer,
-                (*shadow, 225),
-                (landmark_x - 5, 205, 10, 149),
+                (226, 75, 72, 245),
+                (lighthouse_x - 9, 254, 18, 12),
+            )
+            pygame.draw.rect(
+                self._far_layer,
+                (226, 75, 72, 245),
+                (lighthouse_x - 10, 285, 20, 12),
+            )
+            pygame.draw.rect(
+                self._far_layer,
+                (253, 220, 111, 245),
+                (lighthouse_x - 11, 225, 22, 12),
             )
             pygame.draw.polygon(
                 self._far_layer,
-                (*shadow, 225),
-                [(landmark_x, 168), (landmark_x - 5, 205), (landmark_x + 5, 205)],
+                (129, 55, 58, 245),
+                [
+                    (lighthouse_x - 15, 225),
+                    (lighthouse_x, 211),
+                    (lighthouse_x + 15, 225),
+                ],
+            )
+            boat_x = landmark_x - 108
+            pygame.draw.polygon(
+                self._far_layer,
+                (108, 49, 55, 220),
+                [
+                    (boat_x - 21, 280),
+                    (boat_x + 25, 280),
+                    (boat_x + 16, 291),
+                    (boat_x - 13, 291),
+                ],
+            )
+            pygame.draw.line(
+                self._far_layer,
+                (245, 236, 204, 225),
+                (boat_x, 279),
+                (boat_x, 236),
+                3,
+            )
+            pygame.draw.polygon(
+                self._far_layer,
+                (245, 236, 204, 210),
+                [(boat_x + 2, 240), (boat_x + 2, 274), (boat_x + 25, 274)],
+            )
+            palm_x = landmark_x - 170
+            pygame.draw.line(
+                self._far_layer,
+                (79, 58, 55, 225),
+                (palm_x, 329),
+                (palm_x + 5, 259),
+                5,
+            )
+            for dx, dy in ((-25, -7), (-17, -17), (0, -20), (19, -15), (27, -4)):
+                pygame.draw.line(
+                    self._far_layer,
+                    (40, 83, 74, 225),
+                    (palm_x + 5, 259),
+                    (palm_x + 5 + dx, 259 + dy),
+                    5,
+                )
+        else:
+            empire = pygame.Rect(landmark_x - 27, 137, 54, 217)
+            pygame.draw.rect(
+                self._far_layer,
+                (*shadow, 245),
+                empire,
+            )
+            pygame.draw.rect(
+                self._far_layer,
+                (*base, 245),
+                (landmark_x - 20, 119, 40, 20),
+            )
+            pygame.draw.rect(
+                self._far_layer,
+                (*shadow, 245),
+                (landmark_x - 13, 103, 26, 18),
+            )
+            pygame.draw.rect(
+                self._far_layer,
+                (*base, 245),
+                (landmark_x - 7, 88, 14, 17),
+            )
+            pygame.draw.polygon(
+                self._far_layer,
+                (*light, 220),
+                [(landmark_x, 56), (landmark_x - 4, 90), (landmark_x + 4, 90)],
             )
         pygame.draw.rect(self._far_layer, (*shadow, 235), (0, 354, VIRTUAL_W, 46))
 
@@ -1278,7 +1503,7 @@ class City:
 def explode_in_city(city: City, center, scene_time=None, strong=False):
     """Creuse un cratere irregulier et garde un bord sombre dans la facade."""
     cx, cy = int(center[0]), int(center[1])
-    radius = EXPLOSION_RADIUS
+    radius = EXPLOSION_RADIUS + (8 if strong else 5)
     source = city.mask.copy()
     left = max(0, cx - radius - 4)
     right = min(VIRTUAL_W - 1, cx + radius + 4)
@@ -1297,8 +1522,9 @@ def explode_in_city(city: City, center, scene_time=None, strong=False):
                 edge = radius + chip * 0.65
                 if distance <= edge:
                     city.mask.set_at((x, y), (0, 0, 0, 0))
-                elif distance <= radius + 3:
-                    city.mask.set_at((x, y), (31, 20, 43, 255))
+                elif distance <= radius + 6:
+                    soot = max(15, int(47 - (distance - radius) * 5))
+                    city.mask.set_at((x, y), (soot, soot - 5, soot + 5, 255))
     finally:
         source.unlock()
         city.mask.unlock()
@@ -1507,7 +1733,9 @@ def _gorilla_render_pose(player, index, current, banana_active, banana_pos, scen
     bob = 0
 
     if reaction == "laugh":
-        state = "leftup" if int(scene_time * 9) % 2 == 0 else "rightup"
+        state = "leftup" if int(scene_time * 7) % 2 == 0 else "rightup"
+        jitter = -2 if int(scene_time * 14) % 2 == 0 else 2
+        bob = 4 if int(scene_time * 7) % 2 == 0 else 0
     elif reaction == "scared":
         state = "leftup" if int(scene_time * 12) % 2 == 0 else "rightup"
         jitter = -2 if int(scene_time * 24) % 2 == 0 else 2
@@ -1522,14 +1750,24 @@ def _gorilla_render_pose(player, index, current, banana_active, banana_pos, scen
             jitter = -2 if int(scene_time * 28) % 2 == 0 else 2
             reaction = "scared"
     elif state == "idle":
-        bob = 1 if math.sin(scene_time * 3.2 + index * 1.7) > 0.72 else 0
+        breath = math.sin(scene_time * 2.4 + index * 1.7)
+        bob = int(round(1.5 + breath * 1.5))
+        jitter = int(round(math.cos(scene_time * 1.4 + index * 2.1)))
+        idle_cycle = (scene_time + index * 2.7) % 6.2
+        if 0.0 < idle_cycle < 0.42:
+            state = "leftup" if index == 0 else "rightup"
+        elif 0.42 <= idle_cycle < 0.84:
+            state = "rightup" if index == 0 else "leftup"
 
     return state, reaction, jitter, bob
 
 
-def _draw_gorilla_reaction(surface, rect, reaction, blink):
+def _draw_gorilla_reaction(surface, rect, reaction, blink, font=None):
     ink = (47, 28, 31)
     if blink:
+        skin = (217, 145, 66)
+        pygame.draw.rect(surface, skin, (rect.centerx - 10, rect.top + 18, 7, 4))
+        pygame.draw.rect(surface, skin, (rect.centerx + 3, rect.top + 18, 7, 4))
         pygame.draw.line(
             surface,
             ink,
@@ -1546,11 +1784,65 @@ def _draw_gorilla_reaction(surface, rect, reaction, blink):
         )
     if reaction == "laugh":
         color = (255, 225, 119)
-        pygame.draw.line(surface, color, (rect.left + 2, rect.top + 12), (rect.left - 3, rect.top + 8), 2)
-        pygame.draw.line(surface, color, (rect.right - 2, rect.top + 12), (rect.right + 3, rect.top + 8), 2)
+        mouth = pygame.Rect(rect.centerx - 7, rect.top + 28, 14, 9)
+        pygame.draw.ellipse(surface, (47, 20, 26), mouth)
+        pygame.draw.rect(
+            surface,
+            (250, 241, 205),
+            (mouth.x + 3, mouth.y + 1, 8, 2),
+        )
+        pygame.draw.line(
+            surface,
+            color,
+            (rect.left + 2, rect.top + 12),
+            (rect.left - 5, rect.top + 5),
+            3,
+        )
+        pygame.draw.line(
+            surface,
+            color,
+            (rect.right - 2, rect.top + 12),
+            (rect.right + 5, rect.top + 5),
+            3,
+        )
+        if font is not None:
+            laugh = render_text(font, "HA ! HA !", color)
+            bubble = laugh.get_rect().inflate(10, 6)
+            if rect.top < 105:
+                bubble.center = (
+                    rect.right + bubble.width // 2 + 7
+                    if rect.centerx < VIRTUAL_W // 2
+                    else rect.left - bubble.width // 2 - 7,
+                    rect.top + 22,
+                )
+            else:
+                bubble.midbottom = (rect.centerx, rect.top - 5)
+            bubble.clamp_ip(surface.get_rect())
+            pygame.draw.rect(surface, (15, 18, 35), bubble, border_radius=5)
+            pygame.draw.rect(surface, color, bubble, 2, border_radius=5)
+            surface.blit(laugh, laugh.get_rect(center=bubble.center))
     elif reaction == "scared":
         color = (139, 218, 250)
-        pygame.draw.line(surface, color, (rect.right - 1, rect.top + 9), (rect.right + 2, rect.top + 3), 2)
+        pygame.draw.circle(surface, color, (rect.right + 2, rect.top + 5), 4)
+        pygame.draw.line(
+            surface,
+            color,
+            (rect.right + 2, rect.top + 8),
+            (rect.right + 2, rect.top + 13),
+            3,
+        )
+        if font is not None:
+            alert = render_text(font, "!", (255, 225, 119))
+            alert_rect = alert.get_rect(midbottom=(rect.centerx, rect.top - 4))
+            if rect.top < 105:
+                alert_rect.center = (
+                    rect.right + 9
+                    if rect.centerx < VIRTUAL_W // 2
+                    else rect.left - 9,
+                    rect.top + 10,
+                )
+            alert_rect.clamp_ip(surface.get_rect())
+            surface.blit(alert, alert_rect)
 
 
 def draw_scene(
@@ -1635,7 +1927,7 @@ def draw_scene(
             and not reaction
             and (scene_time + index * 1.9) % 4.7 < 0.11
         )
-        _draw_gorilla_reaction(vsurf, rect, reaction, blink)
+        _draw_gorilla_reaction(vsurf, rect, reaction, blink, font_small)
         if index == current and not banana_active:
             marker_y = max(50, rect.top - (20 if getattr(player, "crowned", False) else 7))
             pygame.draw.polygon(
@@ -1643,18 +1935,6 @@ def draw_scene(
                 HUD_ACTIVE,
                 [(rect.centerx - 4, marker_y), (rect.centerx + 4, marker_y), (rect.centerx, marker_y + 4)],
             )
-
-    stuck_alive = []
-    for stuck in city._stuck_bananas:
-        if scene_time >= stuck["expires"]:
-            continue
-        stuck_alive.append(stuck)
-        rotated = pygame.transform.rotate(spr.banana, stuck["angle"])
-        vsurf.blit(
-            rotated,
-            rotated.get_rect(center=(stuck["x"], stuck["y"])),
-        )
-    city._stuck_bananas = stuck_alive
 
     if banana_trail is None:
         banana_trail = _update_internal_trail(city, banana_active, banana_pos)

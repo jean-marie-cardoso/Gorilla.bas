@@ -235,6 +235,23 @@ class Game:
         player.reaction = reaction
         player.reaction_until = self.scene_time + duration
 
+    async def show_reaction_pause(self, duration=1.25):
+        """Laisse le temps de voir rire ou paniquer le gorille."""
+        elapsed = 0.0
+        while elapsed < duration:
+            for event in pygame.event.get():
+                action = self._handle_common_event(event)
+                if action in ("quit", "menu"):
+                    return action
+            dt = min(0.05, self.clock.tick(FPS) / 1000.0)
+            elapsed += dt
+            self.scene_time += dt
+            self.draw_scene()
+            self.blit_scaled()
+            pygame.display.flip()
+            await asyncio.sleep(0)
+        return None
+
     def _vibrate(self, pattern):
         try:
             import platform
@@ -298,10 +315,10 @@ class Game:
         return result
 
     async def show_city_intro(self):
-        """Petit travelling au début de chaque ville."""
+        """Travelling lent et lisible au début de chaque ville."""
         if not self.city_intro_pending:
             return None
-        duration = 0.72
+        duration = 2.6
         elapsed = 0.0
         while elapsed < duration:
             for event in pygame.event.get():
@@ -319,15 +336,16 @@ class Game:
             elapsed += dt
             self.scene_time += dt
             progress = min(1.0, elapsed / duration)
+            travel = progress * progress * (3.0 - 2.0 * progress)
             self.draw_scene()
 
             source = self.vsurf.copy()
-            zoom = 1.08 + math.sin(progress * math.pi) * 0.10
+            zoom = 1.02 + math.sin(progress * math.pi) * 0.07
             crop_w = max(1, int(VIRTUAL_W / zoom))
             crop_h = max(1, int(VIRTUAL_H / zoom))
             camera_x = (
-                self.players[0].pos.x * (1.0 - progress)
-                + self.players[1].pos.x * progress
+                self.players[0].pos.x * (1.0 - travel)
+                + self.players[1].pos.x * travel
             )
             camera_y = 215
             crop_x = max(0, min(VIRTUAL_W - crop_w, int(camera_x - crop_w / 2)))
@@ -338,22 +356,22 @@ class Game:
                 (0, 0),
             )
 
-            shade = pygame.Surface((VIRTUAL_W, 56), pygame.SRCALPHA)
-            shade.fill((3, 10, 24, 188))
-            self.vsurf.blit(shade, (0, VIRTUAL_H // 2 - 28))
+            shade = pygame.Surface((VIRTUAL_W, 78), pygame.SRCALPHA)
+            shade.fill((3, 10, 24, 208))
+            self.vsurf.blit(shade, (0, VIRTUAL_H // 2 - 39))
             title = self.font_big.render(
                 self.city.city_style_label,
                 True,
                 (255, 218, 91),
             )
             subtitle = self.font_small.render(
-                "NOUVELLE VILLE",
+                self.city.city_style_tagline,
                 True,
                 (225, 236, 246),
             )
             self.vsurf.blit(
                 title,
-                title.get_rect(center=(VIRTUAL_W // 2, VIRTUAL_H // 2 - 5)),
+                title.get_rect(center=(VIRTUAL_W // 2, VIRTUAL_H // 2 - 10)),
             )
             self.vsurf.blit(
                 subtitle,
@@ -623,21 +641,11 @@ class Game:
                     scene_time=self.scene_time,
                 )
                 self.shot_path.append(Vector2(impact))
-                if self.rng.random() < 0.68:
-                    stuck_position = Vector2(impact)
-                    if self.banana_vel.length_squared() > 0:
-                        stuck_position -= self.banana_vel.normalize() * 8
-                    self.city._stuck_bananas.append(
-                        {
-                            "x": int(stuck_position.x),
-                            "y": int(stuck_position.y),
-                            "angle": int(self.banana_angle),
-                            "expires": self.scene_time + 4.0,
-                        }
-                    )
                 target = self.other_player
                 if self._shot_min_distances[target] < 78:
-                    self._set_reaction(target, "scared", 1.25)
+                    self._set_reaction(target, "scared", 2.0)
+                else:
+                    self._set_reaction(target, "laugh", 2.0)
                 animation_action = await self.animate_explosion(
                     impact.x,
                     impact.y,
@@ -651,9 +659,9 @@ class Game:
                 self.players[self.current_player].state = "idle"
                 target = self.other_player
                 if self._shot_min_distances[target] < 78:
-                    self._set_reaction(target, "scared", 1.25)
+                    self._set_reaction(target, "scared", 2.0)
                 else:
-                    self._set_reaction(target, "laugh", 1.05)
+                    self._set_reaction(target, "laugh", 2.0)
                 return "miss"
 
             self.sun_expression = (
@@ -929,6 +937,10 @@ class Game:
                 shot_resolved = True
 
             if shot_resolved:
+                if result in ("miss", "block"):
+                    reaction_action = await self.show_reaction_pause(1.35)
+                    if reaction_action:
+                        return reaction_action
                 self._switch_turn()
                 if result in ("hit_p0", "hit_p1"):
                     self.new_city()

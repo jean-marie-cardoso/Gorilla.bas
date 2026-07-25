@@ -19,8 +19,8 @@ class WebShellTests(unittest.TestCase):
                 self.assertEqual(1, content.count('name="viewport"'))
                 self.assertIn('rel="manifest"', content)
                 self.assertIn('rel="apple-touch-icon"', content)
-                self.assertIn("mobile-shell.css?v=19", content)
-                self.assertIn("mobile-shell.js?v=19", content)
+                self.assertIn("mobile-shell.css?v=20", content)
+                self.assertIn("mobile-shell.js?v=20", content)
 
     def test_mobile_fullscreen_files_and_manifest(self):
         required = (
