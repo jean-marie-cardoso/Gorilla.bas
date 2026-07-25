@@ -19,8 +19,8 @@ class WebShellTests(unittest.TestCase):
                 self.assertEqual(1, content.count('name="viewport"'))
                 self.assertIn('rel="manifest"', content)
                 self.assertIn('rel="apple-touch-icon"', content)
-                self.assertIn("mobile-shell.css?v=14", content)
-                self.assertIn("mobile-shell.js?v=14", content)
+                self.assertIn("mobile-shell.css?v=15", content)
+                self.assertIn("mobile-shell.js?v=15", content)
 
     def test_mobile_fullscreen_files_and_manifest(self):
         required = (
@@ -37,6 +37,8 @@ class WebShellTests(unittest.TestCase):
 
         script = (PROJECT_ROOT / "mobile-shell.js").read_text(encoding="utf-8")
         self.assertIn("requestFullscreen", script)
+        self.assertIn("window.GorillaViewport", script)
+        self.assertIn("logicalWidth", script)
         self.assertIn('screen.orientation.lock("landscape")', script)
         self.assertIn("window.visualViewport", script)
         self.assertIn("serviceWorker.register", script)
@@ -46,6 +48,7 @@ class WebShellTests(unittest.TestCase):
         self.assertIn("safe-area-inset-left", stylesheet)
         self.assertIn("compact-landscape", stylesheet)
         self.assertIn("--game-width", stylesheet)
+        self.assertIn("--game-width: 100vw", stylesheet)
 
         browser_input = (
             PROJECT_ROOT / "game" / "browser_input.py"

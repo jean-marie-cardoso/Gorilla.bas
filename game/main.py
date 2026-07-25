@@ -53,7 +53,7 @@ class Game:
         pygame.init()
         pygame.display.set_caption("Gorillas — QBASIC Deluxe")
 
-        # Même ratio que la surface virtuelle : aucun gorille étiré.
+        # Le web choisit une surface virtuelle au ratio réel du téléphone.
         self.screen = pygame.display.set_mode(
             (VIRTUAL_W, VIRTUAL_H),
             pygame.RESIZABLE,
@@ -118,7 +118,7 @@ class Game:
             )
 
     def blit_scaled(self, shake=(0, 0)):
-        """Agrandit sans changer le ratio, avec des bandes discrètes si besoin."""
+        """Agrandit sans déformer le monde logique."""
         screen_w, screen_h = self.screen.get_size()
         if screen_w <= 0 or screen_h <= 0:
             return
@@ -474,8 +474,9 @@ class Game:
     async def show_victory(self, winner):
         self.sound.play("victory")
         selected = 0
-        rematch = pygame.Rect(160, 252, 145, 44)
-        menu = pygame.Rect(335, 252, 145, 44)
+        content_x = max(0, (VIRTUAL_W - 640) // 2)
+        rematch = pygame.Rect(160 + content_x, 252, 145, 44)
+        menu = pygame.Rect(335 + content_x, 252, 145, 44)
         elapsed = 0.0
         confetti = [
             (

@@ -1,7 +1,9 @@
 (() => {
     "use strict";
 
-    const GAME_RATIO = 1.6;
+    const MIN_GAME_RATIO = 1.6;
+    const MAX_LOGICAL_WIDTH = 920;
+    const LOGICAL_HEIGHT = 400;
     let resizeFrame = 0;
     let installPrompt = null;
     let wakeLock = null;
@@ -53,12 +55,23 @@
         const safeWidth = Math.max(1, width - safe.left - safe.right);
         const safeHeight = Math.max(1, height - safe.top - safe.bottom);
 
-        let gameWidth = safeWidth;
-        let gameHeight = gameWidth / GAME_RATIO;
-        if (gameHeight > safeHeight) {
-            gameHeight = safeHeight;
-            gameWidth = gameHeight * GAME_RATIO;
-        }
+        const gameWidth = safeWidth;
+        const gameHeight = safeHeight;
+        const logicalWidth = Math.max(
+            640,
+            Math.min(
+                MAX_LOGICAL_WIDTH,
+                Math.round(
+                    LOGICAL_HEIGHT * Math.max(MIN_GAME_RATIO, safeWidth / safeHeight) / 8,
+                ) * 8,
+            ),
+        );
+        window.GorillaViewport = {
+            width: safeWidth,
+            height: safeHeight,
+            logicalWidth,
+            logicalHeight: LOGICAL_HEIGHT,
+        };
 
         const values = {
             "--app-width": `${Math.round(width)}px`,

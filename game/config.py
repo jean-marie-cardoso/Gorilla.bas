@@ -1,6 +1,21 @@
 # config.py — direction visuelle "QBASIC Deluxe"
-# Resolution logique. Tous les dessins restent alignes sur cette grille.
-VIRTUAL_W, VIRTUAL_H = 640, 400
+# Résolution logique. Sur le web, la largeur suit le téléphone : le monde
+# s'élargit vraiment, sans étirer les gorilles ni le texte.
+def _browser_virtual_width():
+    try:
+        import platform
+
+        window = getattr(platform, "window", None)
+        metrics = getattr(window, "GorillaViewport", None)
+        width = float(getattr(metrics, "logicalWidth", 640))
+    except (AttributeError, TypeError, ValueError):
+        width = 640
+    width = max(640, min(920, width))
+    return int(round(width / 8.0) * 8)
+
+
+VIRTUAL_H = 400
+VIRTUAL_W = _browser_virtual_width()
 FPS = 60
 
 # Gameplay / physics

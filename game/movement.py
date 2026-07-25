@@ -102,7 +102,7 @@ def draw_relocation_choices(game, targets, selected):
     veil.fill((4, 9, 25, 55))
     game.vsurf.blit(veil, (0, 0))
 
-    title_rect = pygame.Rect(166, 54, 308, 38)
+    title_rect = pygame.Rect(VIRTUAL_W // 2 - 154, 54, 308, 38)
     draw_panel(
         game.vsurf,
         title_rect,

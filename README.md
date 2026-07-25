@@ -83,8 +83,9 @@ même trajectoire que le jeu, avec pas fixe et collision sur tout le segment.
 - `tests/` : physique, IA, shell web et archive ;
 - `index.html` : chargeur Pygbag pour GitHub Pages.
 
-Le rendu logique reste en 640×400 et conserve toujours son ratio. Sur petit
-écran vertical, la page demande de passer en paysage.
+Le rendu logique garde une hauteur de 400 pixels. Sa largeur suit le format
+réel du téléphone : le jeu remplit l'écran sans étirer les gorilles ni le texte.
+Sur petit écran vertical, la page demande de passer en paysage.
 
 ### Plein écran sur téléphone
 

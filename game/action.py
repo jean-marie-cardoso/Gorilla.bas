@@ -104,12 +104,13 @@ def _event_virtual_position(game, event):
 
 
 def _aim_rects():
+    offset = max(0, VIRTUAL_W - 640)
     return {
-        "panel": pygame.Rect(374, 220, 250, 166),
-        "angle": pygame.Rect(394, 267, 210, 12),
-        "power": pygame.Rect(394, 317, 210, 12),
-        "move": pygame.Rect(394, 344, 96, 32),
-        "fire": pygame.Rect(498, 344, 106, 32),
+        "panel": pygame.Rect(374 + offset, 220, 250, 166),
+        "angle": pygame.Rect(394 + offset, 267, 210, 12),
+        "power": pygame.Rect(394 + offset, 317, 210, 12),
+        "move": pygame.Rect(394 + offset, 344, 96, 32),
+        "fire": pygame.Rect(498 + offset, 344, 106, 32),
     }
 
 

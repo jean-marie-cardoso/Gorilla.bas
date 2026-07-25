@@ -280,7 +280,7 @@ class BrowserAimControls:
     "justify-content:center",
     "gap:12px",
     "box-sizing:border-box",
-    "width:min(calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 12px), 660px)",
+    "width:calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 12px)",
     "max-width:calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 12px)",
     "padding:10px 12px",
     "border:1px solid rgba(255,209,90,.55)",

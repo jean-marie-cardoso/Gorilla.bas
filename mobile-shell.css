@@ -9,8 +9,8 @@
     --safe-left: 0px;
     --safe-width: 100vw;
     --safe-height: 100vh;
-    --game-width: min(100vw, 160vh);
-    --game-height: min(100vh, 62.5vw);
+    --game-width: 100vw;
+    --game-height: 100vh;
     --game-center-x: 50vw;
     --game-center-y: 50vh;
 }
@@ -182,7 +182,7 @@ body.is-standalone #fullscreen-toggle {
 #gorilla-aim-controls {
     left: var(--game-center-x) !important;
     bottom: calc(var(--safe-bottom) + 8px) !important;
-    width: min(calc(var(--safe-width) - 12px), var(--game-width), 660px) !important;
+    width: min(calc(var(--safe-width) - 12px), var(--game-width)) !important;
     max-width: min(calc(var(--safe-width) - 12px), var(--game-width)) !important;
 }
 

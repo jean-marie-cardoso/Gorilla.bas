@@ -20,6 +20,7 @@ MENU_QUIT = "quit"
 
 MIN_WIN_SCORE = 1
 MAX_WIN_SCORE = 9
+BASE_CONTENT_W = 640
 
 MODE_OPTIONS = (
     (MODE_SOLO_AI, "SOLO IA", "Affronte l'ordinateur"),
@@ -131,10 +132,32 @@ def draw_menu_background(game):
                 background = pygame.image.load(
                     resource_path("assets/menu_background.png")
                 ).convert()
-            if background.get_size() != (VIRTUAL_W, VIRTUAL_H):
-                background = pygame.transform.smoothscale(
-                    background, (VIRTUAL_W, VIRTUAL_H)
+            if background.get_height() != VIRTUAL_H:
+                target_width = round(
+                    background.get_width() * VIRTUAL_H / background.get_height()
                 )
+                background = pygame.transform.smoothscale(
+                    background, (target_width, VIRTUAL_H)
+                )
+            if background.get_width() < VIRTUAL_W:
+                expanded = pygame.Surface((VIRTUAL_W, VIRTUAL_H))
+                offset = (VIRTUAL_W - background.get_width()) // 2
+                expanded.blit(background, (offset, 0))
+                if offset:
+                    side_width = min(offset, background.get_width() // 3)
+                    left = background.subsurface((0, 0, side_width, VIRTUAL_H))
+                    right = background.subsurface(
+                        (background.get_width() - side_width, 0, side_width, VIRTUAL_H)
+                    )
+                    expanded.blit(
+                        pygame.transform.flip(left, True, False),
+                        (offset - side_width, 0),
+                    )
+                    expanded.blit(
+                        pygame.transform.flip(right, True, False),
+                        (offset + background.get_width(), 0),
+                    )
+                background = expanded
         except (OSError, pygame.error):
             background = False
         game._menu_background = background
@@ -256,21 +279,22 @@ def apply_menu_selection(game, mode, difficulty, score, reset_match=True):
 
 
 def _menu_rects():
+    offset = max(0, (VIRTUAL_W - BASE_CONTENT_W) // 2)
     mode_rects = [
-        pygame.Rect(44 + index * 184, 94, 172, 62)
+        pygame.Rect(offset + 44 + index * 184, 94, 172, 62)
         for index in range(len(MODE_OPTIONS))
     ]
     difficulty_rects = [
-        pygame.Rect(251 + index * 104, 195, 94, 34)
+        pygame.Rect(offset + 251 + index * 104, 195, 94, 34)
         for index in range(len(DIFFICULTY_OPTIONS))
     ]
     return {
         "modes": mode_rects,
         "difficulties": difficulty_rects,
-        "score_minus": pygame.Rect(313, 246, 38, 34),
-        "score_plus": pygame.Rect(409, 246, 38, 34),
-        "sound": pygame.Rect(568, 14, 54, 30),
-        "play": pygame.Rect(190, 310, 260, 56),
+        "score_minus": pygame.Rect(offset + 313, 246, 38, 34),
+        "score_plus": pygame.Rect(offset + 409, 246, 38, 34),
+        "sound": pygame.Rect(offset + 568, 14, 54, 30),
+        "play": pygame.Rect(offset + 190, 310, 260, 56),
     }
 
 
@@ -278,10 +302,11 @@ def _draw_menu(game, mode, difficulty, score, pointer):
     draw_menu_background(game)
     surface = game.vsurf
     rects = _menu_rects()
+    offset = max(0, (VIRTUAL_W - BASE_CONTENT_W) // 2)
 
     title_back = pygame.Surface((390, 72), pygame.SRCALPHA)
     pygame.draw.rect(title_back, (4, 15, 34, 185), title_back.get_rect(), border_radius=15)
-    surface.blit(title_back, (125, 5))
+    surface.blit(title_back, (offset + 125, 5))
 
     title = game.font_big.render("GORILLAS", True, (255, 211, 78))
     surface.blit(title, title.get_rect(center=(VIRTUAL_W // 2, 31)))
@@ -318,11 +343,11 @@ def _draw_menu(game, mode, difficulty, score, pointer):
             info = game.font_small.render(description, True, (255, 235, 168))
             surface.blit(info, info.get_rect(center=(VIRTUAL_W // 2, 174)))
 
-    settings_rect = pygame.Rect(124, 184, 392, 108)
+    settings_rect = pygame.Rect(offset + 124, 184, 392, 108)
     _draw_panel(surface, settings_rect)
 
     difficulty_label = game.font_small.render("DIFFICULTÉ IA", True, (181, 206, 230))
-    surface.blit(difficulty_label, (145, 204))
+    surface.blit(difficulty_label, (offset + 145, 204))
     difficulty_disabled = mode != MODE_SOLO_AI
     for index, (option, label) in enumerate(DIFFICULTY_OPTIONS):
         rect = rects["difficulties"][index]
@@ -341,7 +366,7 @@ def _draw_menu(game, mode, difficulty, score, pointer):
         )
 
     score_label = game.font_small.render("POINTS POUR GAGNER", True, (181, 206, 230))
-    surface.blit(score_label, (145, 255))
+    surface.blit(score_label, (offset + 145, 255))
     for key, label in (("score_minus", "−"), ("score_plus", "+")):
         rect = rects[key]
         _draw_button(
@@ -352,7 +377,7 @@ def _draw_menu(game, mode, difficulty, score, pointer):
             hovered=pointer is not None and rect.collidepoint(pointer),
         )
     score_image = game.font_big.render(str(score), True, (255, 216, 86))
-    surface.blit(score_image, score_image.get_rect(center=(380, 263)))
+    surface.blit(score_image, score_image.get_rect(center=(offset + 380, 263)))
 
     play = rects["play"]
     hovered = pointer is not None and play.collidepoint(pointer)
