@@ -388,6 +388,9 @@ class RuntimeSmokeTests(unittest.TestCase):
         self.assertEqual("rematch", asyncio.run(self.game.show_victory(0)))
 
     def test_city_intro_replay_and_storm_thunder(self):
+        from main import WINNING_REPLAY_DURATION
+
+        self.assertGreaterEqual(WINNING_REPLAY_DURATION, 2.5)
         old_clock = self.game.clock
         self.game.clock = type(
             "FastClock",

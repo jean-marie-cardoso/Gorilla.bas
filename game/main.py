@@ -34,6 +34,9 @@ from physics import (
 from sprites import Sprites
 
 
+WINNING_REPLAY_DURATION = 2.8
+
+
 class Player:
     def __init__(self, name, color):
         self.name = name
@@ -408,10 +411,12 @@ class Game:
         return None
 
     async def play_winning_replay(self):
-        """Rejoue la dernière trajectoire au ralenti avec un petit zoom."""
+        """Rejoue lentement la trajectoire, puis garde l'impact à l'écran."""
         if len(self.shot_path) < 2:
             return None
-        duration = 0.88
+        duration = WINNING_REPLAY_DURATION
+        flight_end = 0.62
+        explosion_end = 0.82
         elapsed = 0.0
         impact = Vector2(self.shot_path[-1])
         while elapsed < duration:
@@ -424,7 +429,12 @@ class Game:
             elapsed += dt
             self.scene_time += dt
             progress = min(1.0, elapsed / duration)
-            path_progress = min(1.0, progress / 0.76)
+            raw_path_progress = min(1.0, progress / flight_end)
+            path_progress = (
+                raw_path_progress
+                * raw_path_progress
+                * (3.0 - 2.0 * raw_path_progress)
+            )
             path_index = min(
                 len(self.shot_path) - 1,
                 int(path_progress * (len(self.shot_path) - 1)),
@@ -440,18 +450,27 @@ class Game:
                     (255, 185, 61),
                     (int(point.x) - size // 2, int(point.y) - size // 2, size, size),
                 )
-            angle = round((progress * 540) / 15.0) * 15.0
-            image = pygame.transform.rotate(self.spr.banana, angle)
-            self.vsurf.blit(image, image.get_rect(center=(int(banana.x), int(banana.y))))
-            if progress > 0.76:
+            if progress <= flight_end:
+                angle = round((progress * 720) / 15.0) * 15.0
+                image = pygame.transform.rotate(self.spr.banana, angle)
+                self.vsurf.blit(
+                    image,
+                    image.get_rect(center=(int(banana.x), int(banana.y))),
+                )
+            if progress > flight_end:
+                explosion_progress = min(
+                    0.72,
+                    (progress - flight_end)
+                    / max(0.01, explosion_end - flight_end),
+                )
                 draw_explosion_frame(
                     self.vsurf,
                     impact,
-                    (progress - 0.76) / 0.24,
+                    explosion_progress,
                     max_radius=52,
                 )
 
-            zoom = 1.0 + max(0.0, progress - 0.48) * 0.42
+            zoom = 1.0 + max(0.0, progress - 0.40) * 0.55
             if zoom > 1.0:
                 source = self.vsurf.copy()
                 crop_w = max(1, int(VIRTUAL_W / zoom))
@@ -464,7 +483,12 @@ class Game:
                     (0, 0),
                 )
 
-            label = self.font_small.render("RALENTI", True, (255, 226, 112))
+            label_text = "IMPACT !" if progress >= explosion_end else "RALENTI"
+            label = self.font_small.render(
+                label_text,
+                True,
+                (255, 226, 112),
+            )
             self.vsurf.blit(label, label.get_rect(center=(VIRTUAL_W // 2, 66)))
             self.blit_scaled()
             pygame.display.flip()
