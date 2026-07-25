@@ -145,6 +145,8 @@ class RuntimeSmokeTests(unittest.TestCase):
             self.game.city.generate(rng)
             seen.add(self.game.city.city_style_name)
             roofs.update(style["roof"] for style in self.game.city._styles)
+            heights = [rect.height for rect in self.game.city.rects]
+            self.assertGreaterEqual(max(heights) - min(heights), 42)
 
         self.assertEqual(set(CITY_STYLES), seen)
         self.assertTrue(
@@ -165,6 +167,15 @@ class RuntimeSmokeTests(unittest.TestCase):
             6.0,
         )
         self.game.city.draw_damage_effects(self.game.vsurf, 2.5)
+
+    def test_players_start_on_different_roof_levels(self):
+        for _ in range(20):
+            self.game.new_city()
+            roof_gap = abs(
+                self.game.players[0].pos.y
+                - self.game.players[1].pos.y
+            )
+            self.assertGreaterEqual(roof_gap, 36)
 
     def test_menu_and_aim_accept_keyboard(self):
         pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN))
@@ -369,21 +380,6 @@ class RuntimeSmokeTests(unittest.TestCase):
         )
         self.assertEqual("rematch", asyncio.run(self.game.show_victory(0)))
 
-    def test_rematch_winner_wears_crown(self):
-        self.game.reset_match(crowned_player=1)
-        self.assertFalse(self.game.players[0].crowned)
-        self.assertTrue(self.game.players[1].crowned)
-
-        self.game.draw_scene()
-        crowned = pygame.image.tobytes(self.game.vsurf, "RGBA")
-        self.game.players[1].crowned = False
-        self.game.draw_scene()
-        plain = pygame.image.tobytes(self.game.vsurf, "RGBA")
-        self.assertNotEqual(crowned, plain)
-
-        self.game.reset_match()
-        self.assertFalse(any(player.crowned for player in self.game.players))
-
     def test_city_intro_replay_and_storm_thunder(self):
         old_clock = self.game.clock
         self.game.clock = type(
@@ -417,6 +413,22 @@ class RuntimeSmokeTests(unittest.TestCase):
         self.game.draw_scene()
         self.game.draw_scene()
         self.assertEqual(["thunder"], calls)
+
+    def test_idle_gorillas_keep_their_feet_on_the_roof(self):
+        from graphics import _gorilla_render_pose
+
+        player = self.game.players[0]
+        for scene_time in (0.0, 1.3, 3.7, 8.2):
+            _, _, _, bob = _gorilla_render_pose(
+                player,
+                0,
+                0,
+                False,
+                pygame.Vector2(),
+                scene_time,
+            )
+            self.assertEqual(0, bob)
+        self.assertFalse(hasattr(player, "crowned"))
 
     def test_projectile_resolves_and_effects_draw_at_edges(self):
         async def no_animation(*_args, **_kwargs):

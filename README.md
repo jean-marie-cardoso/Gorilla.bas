@@ -33,7 +33,6 @@ Le gorille touché affiche une mine triste. La banane reste une vraie banane,
 sans visage ni bras. La lune nocturne possède son propre petit visage.
 La ville reste vivante pendant la visée : fenêtres qui s'allument ou
 s'éteignent, silhouettes derrière les vitres et balises d'antenne.
-Pendant une revanche, le vainqueur précédent porte une petite couronne.
 Les villes alternent entre New York, Paris, Tokyo, bord de mer et Néo-City,
 avec leurs propres silhouettes et objets de toit destructibles.
 Les impacts laissent un gros cratère, une fumée persistante et des débris.

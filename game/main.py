@@ -45,7 +45,6 @@ class Player:
         self.last_angle = 45.0
         self.last_power = 180.0
         self.move_available = True
-        self.crowned = False
         self.reaction = ""
         self.reaction_until = 0.0
 
@@ -157,12 +156,37 @@ class Game:
 
     def new_city(self):
         self.city.generate(self.rng)
-        left_idx = self.rng.randint(1, max(1, len(self.city.rects) // 3))
+        left_high = max(1, len(self.city.rects) // 3)
         right_low = max(
             len(self.city.rects) // 3 * 2,
-            left_idx + 1,
+            left_high + 1,
         )
-        right_idx = self.rng.randint(right_low, len(self.city.rects) - 2)
+        left_candidates = list(range(1, left_high + 1))
+        right_candidates = list(range(right_low, len(self.city.rects) - 1))
+        roof_pairs = [
+            (left, right)
+            for left in left_candidates
+            for right in right_candidates
+        ]
+        varied_pairs = [
+            pair
+            for pair in roof_pairs
+            if abs(
+                self.city.rects[pair[0]].top
+                - self.city.rects[pair[1]].top
+            )
+            >= 36
+        ]
+        if varied_pairs:
+            left_idx, right_idx = self.rng.choice(varied_pairs)
+        else:
+            left_idx, right_idx = max(
+                roof_pairs,
+                key=lambda pair: abs(
+                    self.city.rects[pair[0]].top
+                    - self.city.rects[pair[1]].top
+                ),
+            )
         self.players[0].building_index = left_idx
         self.players[1].building_index = right_idx
         for player in self.players:
@@ -180,14 +204,13 @@ class Game:
         self.city_intro_pending = True
         self._last_thunder_cycle = -1
 
-    def reset_match(self, crowned_player=None):
-        for index, player in enumerate(self.players):
+    def reset_match(self):
+        for player in self.players:
             player.score = 0
             player.last_angle = 45.0
             player.last_power = 180.0
             player.state = "idle"
             player.move_available = True
-            player.crowned = index == crowned_player
         self.current_player = 0
         self.other_player = 1
         self.ai_shots_taken = 0
@@ -931,7 +954,7 @@ class Game:
                     victory_action = await self.show_victory(winner)
                     if victory_action != "rematch":
                         return victory_action
-                    self.reset_match(crowned_player=winner)
+                    self.reset_match()
                     continue
 
                 shot_resolved = True

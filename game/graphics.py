@@ -39,28 +39,6 @@ BUILDING_COLORS = [
 ]
 
 
-def _draw_crown(surface, center_x, bottom_y):
-    """Petite couronne pixel, lisible sur tous les gorilles."""
-    dark = (75, 43, 28)
-    gold = (255, 193, 45)
-    shine = (255, 231, 112)
-    points = [
-        (center_x - 10, bottom_y - 2),
-        (center_x - 9, bottom_y - 11),
-        (center_x - 4, bottom_y - 7),
-        (center_x, bottom_y - 13),
-        (center_x + 4, bottom_y - 7),
-        (center_x + 9, bottom_y - 11),
-        (center_x + 10, bottom_y - 2),
-    ]
-    pygame.draw.polygon(surface, dark, points)
-    inner = [(x, y + 2) for x, y in points]
-    pygame.draw.polygon(surface, gold, inner)
-    pygame.draw.rect(surface, dark, (center_x - 10, bottom_y - 3, 20, 5))
-    pygame.draw.rect(surface, gold, (center_x - 8, bottom_y - 2, 16, 3))
-    pygame.draw.rect(surface, shine, (center_x - 6, bottom_y - 1, 3, 1))
-
-
 def _draw_moon(surface, center, expression="smile"):
     """Lune pleine pixelisée, avec un visage doux."""
     center_x, center_y = center
@@ -531,26 +509,65 @@ class City:
         heights = []
         previous = None
         for index, _ in enumerate(widths):
-            height = rng.randint(*city_settings["height"])
-            if previous is not None and abs(height - previous) < 18:
-                low, high = city_settings["height"]
-                height = max(low, min(high, height + rng.choice((-28, 28))))
+            low, high = city_settings["height"]
+            height = rng.randint(low, high)
             distance_to_center = abs(index - (len(widths) - 1) / 2)
-            if self.city_style_name == "new_york" and distance_to_center < 1.2:
-                height = max(height, city_settings["height"][1] - 8)
+            if self.city_style_name == "new_york":
+                middle = (low + high) // 2
+                if distance_to_center < 1.2:
+                    height = rng.randint(high - 16, high)
+                elif index % 4 == 0:
+                    height = rng.randint(low, middle - 12)
+                elif index % 4 == 1:
+                    height = rng.randint(middle + 8, high)
             elif self.city_style_name == "paris":
-                height = min(
-                    city_settings["height"][1],
-                    105 + rng.randint(-16, 24),
+                paris_bands = (
+                    (low, min(high, low + 24)),
+                    (max(low, high - 24), high),
+                    (low + 20, high - 18),
                 )
-            elif self.city_style_name == "tokyo" and index % 5 == 2:
-                height = max(height, 205)
+                band_low, band_high = paris_bands[index % len(paris_bands)]
+                height = rng.randint(band_low, max(band_low, band_high))
+            elif self.city_style_name == "tokyo":
+                if index % 5 == 2:
+                    height = rng.randint(max(low, 205), high)
+                elif index % 4 == 0:
+                    height = rng.randint(low, min(high, 128))
             elif self.city_style_name == "seaside":
-                height = min(height, 96 + (index % 3) * 7)
-            elif self.city_style_name == "future" and index % 4 == 1:
-                height = max(height, 224)
+                seaside_bands = (
+                    (low, min(high, low + 15)),
+                    (max(low, high - 18), high),
+                    (low + 14, high - 14),
+                )
+                band_low, band_high = seaside_bands[index % len(seaside_bands)]
+                height = rng.randint(band_low, max(band_low, band_high))
+            elif self.city_style_name == "future":
+                if index % 4 == 1:
+                    height = rng.randint(max(low, 224), high)
+                elif index % 4 == 3:
+                    height = rng.randint(low, min(high, 154))
+
+            # Pas de longue ligne de toits plats : deux voisins doivent être
+            # franchement différents dès que la plage le permet.
+            if previous is not None and abs(height - previous) < 20:
+                step = rng.randint(22, 36)
+                can_rise = previous + step <= high
+                can_fall = previous - step >= low
+                if can_rise and (not can_fall or index % 2):
+                    height = previous + step
+                elif can_fall:
+                    height = previous - step
+                else:
+                    height = high if previous < (low + high) // 2 else low
             heights.append(height)
             previous = height
+
+        # Sécurité gameplay : une ville doit toujours avoir un toit bas et
+        # un toit haut dans les zones où les joueurs peuvent apparaître.
+        required_spread = min(58, high - low - 4)
+        if max(heights) - min(heights) < required_spread:
+            heights[1] = low + 2
+            heights[-2] = high - 2
 
         self.rects.clear()
         self._styles.clear()
@@ -974,36 +991,131 @@ class City:
 
         landmark_x = int(VIRTUAL_W * 0.62)
         if self.city_style_name == "paris":
-            tower = (91, 62, 66, 255)
-            pygame.draw.line(
+            tower_dark = (53, 42, 50, 255)
+            tower = (147, 91, 65, 255)
+            tower_light = (230, 166, 90, 230)
+            left_leg = [
+                (landmark_x, 101),
+                (landmark_x - 12, 160),
+                (landmark_x - 28, 230),
+                (landmark_x - 62, 354),
+            ]
+            right_leg = [
+                (landmark_x, 101),
+                (landmark_x + 12, 160),
+                (landmark_x + 28, 230),
+                (landmark_x + 62, 354),
+            ]
+            pygame.draw.lines(
                 self._far_layer,
-                tower,
-                (landmark_x, 104),
-                (landmark_x - 48, 354),
-                7,
+                tower_dark,
+                False,
+                left_leg,
+                10,
             )
-            pygame.draw.line(
+            pygame.draw.lines(
                 self._far_layer,
-                tower,
-                (landmark_x, 104),
-                (landmark_x + 48, 354),
-                7,
+                tower_dark,
+                False,
+                right_leg,
+                10,
             )
-            pygame.draw.line(
-                self._far_layer,
-                (*light, 210),
-                (landmark_x, 92),
-                (landmark_x, 116),
-                3,
-            )
-            for yy, width in ((168, 20), (231, 45), (296, 70), (344, 96)):
+            pygame.draw.lines(self._far_layer, tower, False, left_leg, 5)
+            pygame.draw.lines(self._far_layer, tower, False, right_leg, 5)
+
+            # Trois grandes plateformes, signature de la tour.
+            for yy, half_width in ((143, 15), (214, 34), (289, 52)):
+                pygame.draw.line(
+                    self._far_layer,
+                    tower_dark,
+                    (landmark_x - half_width, yy),
+                    (landmark_x + half_width, yy),
+                    9,
+                )
+                pygame.draw.line(
+                    self._far_layer,
+                    tower_light,
+                    (landmark_x - half_width + 2, yy),
+                    (landmark_x + half_width - 2, yy),
+                    4,
+                )
+
+            # Croisillons métalliques entre les plateformes.
+            for top_y, top_half, bottom_y, bottom_half in (
+                (149, 16, 208, 31),
+                (220, 35, 283, 49),
+                (296, 54, 342, 67),
+            ):
                 pygame.draw.line(
                     self._far_layer,
                     tower,
-                    (landmark_x - width // 2, yy),
-                    (landmark_x + width // 2, yy),
-                    5,
+                    (landmark_x - top_half, top_y),
+                    (landmark_x + bottom_half, bottom_y),
+                    3,
                 )
+                pygame.draw.line(
+                    self._far_layer,
+                    tower,
+                    (landmark_x + top_half, top_y),
+                    (landmark_x - bottom_half, bottom_y),
+                    3,
+                )
+
+            # Grande arche vide entre les deux pieds.
+            left_arch = [
+                (landmark_x - 59, 354),
+                (landmark_x - 52, 326),
+                (landmark_x - 38, 306),
+                (landmark_x - 18, 296),
+            ]
+            right_arch = [
+                (landmark_x + 59, 354),
+                (landmark_x + 52, 326),
+                (landmark_x + 38, 306),
+                (landmark_x + 18, 296),
+            ]
+            pygame.draw.lines(
+                self._far_layer,
+                tower_light,
+                False,
+                left_arch,
+                4,
+            )
+            pygame.draw.lines(
+                self._far_layer,
+                tower_light,
+                False,
+                right_arch,
+                4,
+            )
+            pygame.draw.line(
+                self._far_layer,
+                tower_light,
+                (landmark_x - 18, 296),
+                (landmark_x + 18, 296),
+                4,
+            )
+
+            pygame.draw.line(
+                self._far_layer,
+                tower_dark,
+                (landmark_x, 57),
+                (landmark_x, 103),
+                6,
+            )
+            pygame.draw.line(
+                self._far_layer,
+                tower_light,
+                (landmark_x, 58),
+                (landmark_x, 103),
+                3,
+            )
+            pygame.draw.circle(
+                self._far_layer,
+                (255, 221, 119, 235),
+                (landmark_x, 56),
+                3,
+            )
         elif self.city_style_name == "tokyo":
             tower_red = (240, 75, 82, 245)
             pygame.draw.line(
@@ -1750,8 +1862,8 @@ def _gorilla_render_pose(player, index, current, banana_active, banana_pos, scen
             jitter = -2 if int(scene_time * 28) % 2 == 0 else 2
             reaction = "scared"
     elif state == "idle":
-        breath = math.sin(scene_time * 2.4 + index * 1.7)
-        bob = int(round(1.5 + breath * 1.5))
+        # Les pieds restent fixes sur le toit : aucune fausse lévitation.
+        bob = 0
         jitter = int(round(math.cos(scene_time * 1.4 + index * 2.1)))
         idle_cycle = (scene_time + index * 2.7) % 6.2
         if 0.0 < idle_cycle < 0.42:
@@ -1918,9 +2030,6 @@ def draw_scene(
             (26, 17, 38),
             (rect.centerx - shadow_width // 2, int(player.pos.y) - 2, shadow_width, 3),
         )
-        if getattr(player, "crowned", False):
-            # Dessinée derrière les cheveux : la couronne paraît portée.
-            _draw_crown(vsurf, rect.centerx, rect.top + 10)
         vsurf.blit(image, rect)
         blink = (
             render_state == "idle"
@@ -1929,7 +2038,7 @@ def draw_scene(
         )
         _draw_gorilla_reaction(vsurf, rect, reaction, blink, font_small)
         if index == current and not banana_active:
-            marker_y = max(50, rect.top - (20 if getattr(player, "crowned", False) else 7))
+            marker_y = max(50, rect.top - 7)
             pygame.draw.polygon(
                 vsurf,
                 HUD_ACTIVE,
