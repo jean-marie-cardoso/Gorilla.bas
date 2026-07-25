@@ -1067,32 +1067,6 @@ def draw_wind_indicator(vsurf, font, wind_value, position=None):
         pygame.draw.rect(vsurf, direction_color, (center_x - 2, line_y - 2, 5, 5), 1)
 
 
-def draw_atmosphere_indicator(vsurf, font, city):
-    rect = pygame.Rect(VIRTUAL_W - 172, 53, 164, 32)
-    accents = {
-        "sunset": (255, 163, 79),
-        "sunny": (255, 218, 92),
-        "night": (144, 171, 255),
-        "rain": (105, 190, 226),
-        "snow": (220, 243, 255),
-        "storm": (184, 176, 255),
-    }
-    accent = accents.get(city.atmosphere_name, (220, 220, 230))
-    draw_panel(
-        vsurf,
-        rect,
-        fill=HUD_BG_SOFT,
-        border=HUD_BORDER,
-        accent=accent,
-        shadow=True,
-    )
-    label = render_text(font, "MÉTÉO", (200, 184, 209))
-    name = clip_text(font, city.atmosphere_label, 104)
-    value = render_text(font, name, accent)
-    vsurf.blit(label, (rect.x + 10, rect.y + 8))
-    vsurf.blit(value, (rect.right - value.get_width() - 8, rect.y + 8))
-
-
 def _active_player(city, players, banana_active, explicit):
     previous_flying = city._scene_banana_active
     if explicit is not None:
@@ -1238,9 +1212,10 @@ def draw_scene(
             (26, 17, 38),
             (rect.centerx - shadow_width // 2, int(player.pos.y) - 2, shadow_width, 3),
         )
-        vsurf.blit(image, rect)
         if getattr(player, "crowned", False):
-            _draw_crown(vsurf, rect.centerx, rect.top - 2)
+            # Dessinée derrière les cheveux : la couronne paraît portée.
+            _draw_crown(vsurf, rect.centerx, rect.top + 10)
+        vsurf.blit(image, rect)
         if index == current and not banana_active:
             marker_y = max(50, rect.top - (20 if getattr(player, "crowned", False) else 7))
             pygame.draw.polygon(
@@ -1265,7 +1240,5 @@ def draw_scene(
     _draw_player_card(vsurf, players[1], 1, current == 1, font, font_small)
     _draw_score_panel(vsurf, players, font, font_small)
     draw_wind_indicator(vsurf, font_small, wind_value)
-    draw_atmosphere_indicator(vsurf, font_small, city)
-
     if status_message:
         draw_toast(vsurf, font_small, status_message)
