@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import sys
 import unittest
+from unittest import mock
 
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
@@ -92,6 +93,30 @@ class RuntimeSmokeTests(unittest.TestCase):
         pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN))
         shot = asyncio.run(self.ask_angle_power(self.game, self.game.players[0]))
         self.assertEqual((45.0, 180.0), shot)
+
+    def test_weather_time_keeps_moving_while_player_aims(self):
+        start = self.game.scene_time
+        old_clock = self.game.clock
+        self.game.clock = type(
+            "FastClock",
+            (),
+            {"tick": lambda _self, _fps: 25},
+        )()
+        event_batches = [
+            [],
+            [],
+            [pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN)],
+        ]
+        try:
+            with mock.patch("pygame.event.get", side_effect=event_batches):
+                shot = asyncio.run(
+                    self.ask_angle_power(self.game, self.game.players[0])
+                )
+        finally:
+            self.game.clock = old_clock
+
+        self.assertEqual((45.0, 180.0), shot)
+        self.assertGreaterEqual(self.game.scene_time - start, 0.05)
 
     def test_player_can_move_once_then_gets_move_back_in_new_city(self):
         from movement import (

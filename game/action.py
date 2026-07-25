@@ -396,13 +396,14 @@ async def ask_angle_power(game, player):
                         _play_sound(game)
                         return "move"
 
+            dt = min(0.05, game.clock.tick(FPS) / 1000.0)
+            game.scene_time += dt
             game.draw_scene()
             _draw_aim_guide(game, player, angle, power)
             if not web_controls.available:
                 _draw_aim_panel(game, player, angle, power, pointer)
             game.blit_scaled()
             pygame.display.flip()
-            game.clock.tick(FPS)
             await asyncio.sleep(0)
     finally:
         web_controls.hide()
