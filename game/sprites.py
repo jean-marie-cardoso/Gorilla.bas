@@ -275,6 +275,7 @@ class Sprites:
 
         if USE_PROCEDURAL_PIXEL_SPRITES:
             self.gorilla_idle = _make_gorilla("idle")
+            self.gorilla_sad = self.gorilla_idle
             self.gorilla_leftup = _make_gorilla("leftup")
             self.gorilla_rightup = _make_gorilla("rightup")
             self.sun_frames = {
@@ -289,6 +290,7 @@ class Sprites:
 
         base = ASSETS_DIR
         self.gorilla_idle = _load(resource_path(os.path.join(base, SPRITES["gorilla_idle"])))
+        self.gorilla_sad = _load(resource_path(os.path.join(base, SPRITES["gorilla_sad"])))
         self.gorilla_leftup = _load(resource_path(os.path.join(base, SPRITES["gorilla_leftup"])))
         self.gorilla_rightup = _load(resource_path(os.path.join(base, SPRITES["gorilla_rightup"])))
         self.sun = _load(resource_path(os.path.join(base, SPRITES["sun"])))
@@ -302,6 +304,7 @@ class Sprites:
 
         self.gorilla_idle = _scale_to_height(self.gorilla_idle, GORILLA_H_TARGET)
         target_size = self.gorilla_idle.get_size()
+        self.gorilla_sad = pygame.transform.scale(self.gorilla_sad, target_size)
         self.gorilla_leftup = pygame.transform.scale(self.gorilla_leftup, target_size)
         self.gorilla_rightup = pygame.transform.scale(self.gorilla_rightup, target_size)
         self.sun = _scale_to_width(self.sun, SUN_W_TARGET)
@@ -319,6 +322,7 @@ class Sprites:
     def _build_gorilla_teams(self):
         blue = {
             "idle": self.gorilla_idle,
+            "sad": self.gorilla_sad,
             "leftup": self.gorilla_leftup,
             "rightup": self.gorilla_rightup,
         }

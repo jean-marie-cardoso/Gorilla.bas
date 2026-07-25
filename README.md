@@ -29,6 +29,8 @@ vent affiché : sens de la flèche, force et vitesse des particules.
 Une lune éclaire le ciel nocturne à la place du soleil.
 Les deux gorilles sont immédiatement reconnaissables : maillot bleu numéro 1
 et maillot orange numéro 2.
+Le gorille touché affiche une mine triste. La banane reste une vraie banane,
+sans visage ni bras. La lune nocturne possède son propre petit visage.
 La ville reste vivante pendant la visée : fenêtres qui s'allument ou
 s'éteignent, silhouettes derrière les vitres et balises d'antenne.
 Pendant une revanche, le vainqueur précédent porte une petite couronne.

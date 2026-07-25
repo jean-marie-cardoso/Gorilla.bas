@@ -60,8 +60,18 @@ class RuntimeSmokeTests(unittest.TestCase):
         self.assertEqual(68, self.game.spr.gorilla_idle.get_height())
         self.assertEqual(76, self.game.spr.sun.get_width())
         blue = self.game.spr.get_gorilla(0, "idle")
+        sad = self.game.spr.get_gorilla(0, "sad")
         orange = self.game.spr.get_gorilla(1, "idle")
         self.assertEqual(blue.get_size(), orange.get_size())
+        self.assertEqual(blue.get_size(), sad.get_size())
+        self.assertNotEqual(
+            pygame.image.tobytes(blue, "RGBA"),
+            pygame.image.tobytes(sad, "RGBA"),
+        )
+        self.assertGreater(
+            self.game.spr.banana.get_width(),
+            self.game.spr.banana.get_height(),
+        )
         self.assertNotEqual(
             pygame.image.tobytes(blue, "RGBA"),
             pygame.image.tobytes(orange, "RGBA"),
@@ -84,6 +94,10 @@ class RuntimeSmokeTests(unittest.TestCase):
             if name == "night":
                 moon_center = self.game.vsurf.get_at(self.game.sun_rect.center)[:3]
                 self.assertGreater(sum(moon_center), 600)
+                moon_eye = self.game.vsurf.get_at(
+                    (self.game.sun_rect.centerx - 7, self.game.sun_rect.centery - 3)
+                )[:3]
+                self.assertLess(sum(moon_eye), 300)
             if name == "storm":
                 self.assertGreaterEqual(abs(self.game.wind), 7)
 
@@ -357,6 +371,27 @@ class RuntimeSmokeTests(unittest.TestCase):
         for point in ((0, 0), (639, 399), (320, 200)):
             self.explode_in_city(self.game.city, point)
             self.draw_explosion_frame(self.game.vsurf, point, 0.5)
+
+    def test_hit_gorilla_uses_sad_sprite(self):
+        async def no_animation(*_args, **_kwargs):
+            return None
+
+        self.game.animate_explosion = no_animation
+        self.game.current_player = 0
+        self.game.other_player = 1
+        self.game.banana_active = True
+        self.game.banana_pos = pygame.Vector2(200, 100)
+        self.game.banana_vel = pygame.Vector2(100, 0)
+
+        hit = (0.1, 1, pygame.Vector2(self.game.players[1].pos.x, 100))
+        with (
+            mock.patch("main.first_segment_collision", return_value=None),
+            mock.patch.object(self.game, "_first_player_hit", return_value=hit),
+        ):
+            result = asyncio.run(self.game.update_banana(1.0 / 60.0))
+
+        self.assertEqual("hit_p1", result)
+        self.assertEqual("sad", self.game.players[1].state)
 
     def test_menu_render_and_audio_bank(self):
         self.draw_menu(self.game, self.MODE_SOLO_AI, "hard", 9, (320, 200))

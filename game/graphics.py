@@ -61,8 +61,8 @@ def _draw_crown(surface, center_x, bottom_y):
     pygame.draw.rect(surface, shine, (center_x - 6, bottom_y - 1, 3, 1))
 
 
-def _draw_moon(surface, center):
-    """Lune pleine pixelisée avec halo et petits cratères."""
+def _draw_moon(surface, center, expression="smile"):
+    """Lune pleine pixelisée, avec un visage doux."""
     center_x, center_y = center
     glow = pygame.Surface((76, 76), pygame.SRCALPHA)
     pygame.draw.circle(glow, (190, 211, 225, 18), (38, 38), 37)
@@ -72,9 +72,20 @@ def _draw_moon(surface, center):
     pygame.draw.circle(surface, (42, 52, 78), center, 27)
     pygame.draw.circle(surface, (232, 235, 210), center, 24)
     pygame.draw.circle(surface, (250, 244, 211), (center_x - 5, center_y - 6), 17)
-    pygame.draw.circle(surface, (185, 192, 178), (center_x + 9, center_y - 8), 4)
-    pygame.draw.circle(surface, (201, 205, 185), (center_x - 9, center_y + 7), 5)
-    pygame.draw.circle(surface, (174, 184, 174), (center_x + 7, center_y + 10), 3)
+    pygame.draw.circle(surface, (185, 192, 178), (center_x - 13, center_y - 10), 3)
+    pygame.draw.circle(surface, (201, 205, 185), (center_x - 13, center_y + 11), 4)
+    pygame.draw.circle(surface, (174, 184, 174), (center_x + 14, center_y + 11), 3)
+
+    ink = (64, 67, 82)
+    pygame.draw.rect(surface, ink, (center_x - 8, center_y - 4, 3, 4))
+    pygame.draw.rect(surface, ink, (center_x + 5, center_y - 4, 3, 4))
+    if expression == "surprised":
+        pygame.draw.circle(surface, ink, (center_x, center_y + 9), 3)
+        pygame.draw.circle(surface, (232, 235, 210), (center_x, center_y + 9), 1)
+    else:
+        pygame.draw.line(surface, ink, (center_x - 6, center_y + 7), (center_x - 3, center_y + 10), 2)
+        pygame.draw.line(surface, ink, (center_x - 3, center_y + 10), (center_x + 3, center_y + 10), 2)
+        pygame.draw.line(surface, ink, (center_x + 3, center_y + 10), (center_x + 6, center_y + 7), 2)
 
 
 ATMOSPHERES = {
@@ -1204,7 +1215,7 @@ def draw_scene(
         sun_image = spr.get_sun(expression) if hasattr(spr, "get_sun") else spr.sun
         vsurf.blit(sun_image, sun_image.get_rect(center=sun_rect.center))
     elif city.show_moon:
-        _draw_moon(vsurf, sun_rect.center)
+        _draw_moon(vsurf, sun_rect.center, expression)
     vsurf.blit(city.mask, (0, 0))
     city.draw_building_life(vsurf, scene_time)
 

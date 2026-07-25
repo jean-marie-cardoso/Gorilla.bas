@@ -66,9 +66,10 @@ BANANA_ROT_SPEED = 360
 ASSETS_DIR = "assets"
 SPRITES = {
     "gorilla_idle": "gorilla_p1_idle_v3.png",
+    "gorilla_sad": "gorilla_p1_sad_v1.png",
     "gorilla_leftup": "gorilla_p1_leftup_v3.png",
     "gorilla_rightup": "gorilla_p1_rightup_v3.png",
     "sun": "sun_v2.png",
     "sun_surprised": "sun_surprised_v2.png",
-    "banana": "banana.png",
+    "banana": "banana_v2.png",
 }

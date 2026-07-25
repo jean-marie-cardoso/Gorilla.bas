@@ -399,6 +399,7 @@ class Game:
                 _, hit_index, center = player_hit
                 self.banana_active = False
                 self.players[self.current_player].state = "idle"
+                self.players[hit_index].state = "sad"
                 explode_in_city(
                     self.city,
                     (int(center.x), int(self.players[hit_index].pos.y)),
