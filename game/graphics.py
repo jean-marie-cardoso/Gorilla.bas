@@ -1706,9 +1706,19 @@ def draw_explosion_wave(vsurf, center, max_radius=40, color=(255, 165, 0), progr
     draw_explosion_frame(vsurf, center, progress, max_radius=max_radius, accent=color)
 
 
+def _wind_panel_rect():
+    """Place le vent entre la carte P1 et le panneau DUEL."""
+    player_right = 8 + 176
+    duel_left = VIRTUAL_W // 2 - 53
+    available = max(76, duel_left - player_right)
+    width = max(76, min(142, available - 8))
+    x = player_right + max(4, (available - width) // 2)
+    return pygame.Rect(x, 10, width, 34)
+
+
 def draw_wind_indicator(vsurf, font, wind_value, position=None):
     value = max(-WIND_MAX, min(WIND_MAX, int(round(wind_value))))
-    panel = pygame.Rect(position or (8, 53, 142, 32))
+    panel = pygame.Rect(position) if position is not None else _wind_panel_rect()
     direction_color = (93, 211, 238) if value < 0 else (255, 190, 72)
     if value == 0:
         direction_color = (204, 194, 215)
@@ -1723,12 +1733,18 @@ def draw_wind_indicator(vsurf, font, wind_value, position=None):
 
     label = render_text(font, "VENT", (200, 184, 209))
     value_text = render_text(font, f"{value:+d}", CREAM)
-    vsurf.blit(label, (panel.x + 10, panel.y + 3))
-    vsurf.blit(value_text, (panel.right - value_text.get_width() - 8, panel.y + 3))
+    compact = panel.width < 100
+    side_pad = 6 if compact else 10
+    value_pad = 5 if compact else 8
+    vsurf.blit(label, (panel.x + side_pad, panel.y + 3))
+    vsurf.blit(
+        value_text,
+        (panel.right - value_text.get_width() - value_pad, panel.y + 3),
+    )
 
     line_y = panel.bottom - 8
-    left = panel.x + 12
-    right = panel.right - 10
+    left = panel.x + (7 if compact else 12)
+    right = panel.right - (6 if compact else 10)
     center_x = (left + right) // 2
     pygame.draw.line(vsurf, (93, 67, 103), (left, line_y), (right, line_y), 2)
     pygame.draw.rect(vsurf, (205, 178, 187), (center_x, line_y - 2, 1, 5))

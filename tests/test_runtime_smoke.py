@@ -77,6 +77,13 @@ class RuntimeSmokeTests(unittest.TestCase):
             pygame.image.tobytes(orange, "RGBA"),
         )
 
+        from graphics import _wind_panel_rect
+
+        wind_panel = _wind_panel_rect()
+        self.assertGreaterEqual(wind_panel.left, 184)
+        self.assertLessEqual(wind_panel.right, 640 // 2 - 53)
+        self.assertLess(wind_panel.top, 47)
+
     def test_all_random_atmospheres_render_and_control_wind(self):
         import random
 
