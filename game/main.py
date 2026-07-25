@@ -163,7 +163,7 @@ class Game:
             player.pos = Vector2(building.centerx, building.top)
             player.state = "idle"
             player.move_available = True
-        self.wind = self.rng.randint(-WIND_MAX, WIND_MAX)
+        self.wind = self.city.choose_wind(self.rng)
         self.banana_active = False
         self.banana_trail.clear()
         self.sun_expression = "happy"

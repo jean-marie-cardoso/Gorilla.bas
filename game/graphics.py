@@ -41,13 +41,101 @@ BUILDING_COLORS = [
     (99, 48, 97),
 ]
 
+ATMOSPHERES = {
+    "sunset": {
+        "label": "CRÉPUSCULE",
+        "sky": (SKY_TOP, SKY_MIDDLE, SKY_HORIZON, SKY_GLOW),
+        "stars": 54,
+        "clouds": 4,
+        "cloud_color": (121, 91, 145),
+        "cloud_alpha": (32, 60),
+        "cloud_speed": (1.0, 3.2),
+        "weather": None,
+        "show_sun": True,
+        "wind": (-WIND_MAX, WIND_MAX),
+        "window_light": 0.51,
+    },
+    "sunny": {
+        "label": "GRAND SOLEIL",
+        "sky": ((24, 105, 179), (70, 160, 217), (246, 181, 113), (255, 211, 145)),
+        "stars": 0,
+        "clouds": 3,
+        "cloud_color": (225, 240, 249),
+        "cloud_alpha": (82, 125),
+        "cloud_speed": (0.5, 1.5),
+        "weather": "sun_haze",
+        "show_sun": True,
+        "wind": (-4, 4),
+        "window_light": 0.22,
+    },
+    "night": {
+        "label": "NUIT ÉCLAIRÉE",
+        "sky": ((2, 8, 28), (10, 24, 61), (28, 43, 82), (44, 52, 86)),
+        "stars": 92,
+        "clouds": 2,
+        "cloud_color": (49, 60, 103),
+        "cloud_alpha": (28, 48),
+        "cloud_speed": (0.6, 1.6),
+        "weather": "night",
+        "show_sun": False,
+        "wind": (-6, 6),
+        "window_light": 0.66,
+    },
+    "rain": {
+        "label": "PLUIE",
+        "sky": ((14, 31, 52), (40, 65, 82), (76, 89, 101), (100, 104, 108)),
+        "stars": 0,
+        "clouds": 7,
+        "cloud_color": (46, 54, 68),
+        "cloud_alpha": (105, 155),
+        "cloud_speed": (2.0, 4.8),
+        "weather": "rain",
+        "show_sun": False,
+        "wind": (-8, 8),
+        "window_light": 0.58,
+    },
+    "snow": {
+        "label": "NEIGE",
+        "sky": ((38, 54, 82), (83, 105, 132), (151, 158, 172), (190, 185, 188)),
+        "stars": 10,
+        "clouds": 6,
+        "cloud_color": (174, 185, 201),
+        "cloud_alpha": (72, 112),
+        "cloud_speed": (0.7, 2.1),
+        "weather": "snow",
+        "show_sun": False,
+        "wind": (-6, 6),
+        "window_light": 0.61,
+    },
+    "storm": {
+        "label": "TEMPÊTE",
+        "sky": ((5, 9, 26), (22, 26, 52), (48, 48, 70), (70, 64, 76)),
+        "stars": 0,
+        "clouds": 9,
+        "cloud_color": (24, 27, 43),
+        "cloud_alpha": (145, 205),
+        "cloud_speed": (5.5, 10.0),
+        "weather": "storm",
+        "show_sun": False,
+        "wind": "storm",
+        "window_light": 0.64,
+    },
+}
+ATMOSPHERE_NAMES = tuple(ATMOSPHERES)
+
 
 def _lerp_color(a, b, amount):
     amount = max(0.0, min(1.0, amount))
     return tuple(int(a[i] + (b[i] - a[i]) * amount) for i in range(3))
 
 
-def _make_sky():
+def _make_sky(colors=None):
+    top, middle, horizon, glow = colors or (
+        SKY_TOP,
+        SKY_MIDDLE,
+        SKY_HORIZON,
+        SKY_GLOW,
+    )
     sky = pygame.Surface((VIRTUAL_W, VIRTUAL_H))
     horizon_y = int(VIRTUAL_H * 0.68)
     for y in range(VIRTUAL_H):
@@ -56,17 +144,17 @@ def _make_sky():
         if sample_y <= horizon_y:
             t = sample_y / float(horizon_y)
             if t < 0.58:
-                color = _lerp_color(SKY_TOP, SKY_MIDDLE, t / 0.58)
+                color = _lerp_color(top, middle, t / 0.58)
             else:
-                color = _lerp_color(SKY_MIDDLE, SKY_HORIZON, (t - 0.58) / 0.42)
+                color = _lerp_color(middle, horizon, (t - 0.58) / 0.42)
         else:
             t = (sample_y - horizon_y) / float(VIRTUAL_H - horizon_y)
-            color = _lerp_color(SKY_HORIZON, SKY_GLOW, min(1.0, t * 0.72))
+            color = _lerp_color(horizon, glow, min(1.0, t * 0.72))
         pygame.draw.line(sky, color, (0, y), (VIRTUAL_W, y))
 
     # Quelques lignes de trame discretes pres de l'horizon.
     for y in range(174, 246, 8):
-        color = (*_lerp_color(SKY_MIDDLE, SKY_GLOW, (y - 174) / 110.0),)
+        color = (*_lerp_color(middle, glow, (y - 174) / 110.0),)
         for x in range((y // 8) % 2 * 4, VIRTUAL_W, 8):
             sky.set_at((x, y), color)
     return sky
@@ -95,19 +183,99 @@ class City:
     def __init__(self):
         self.rects = []
         self.mask = pygame.Surface((VIRTUAL_W, VIRTUAL_H), pygame.SRCALPHA)
-        self._sky = _make_sky()
+        self.atmosphere_name = "sunset"
+        self.atmosphere = ATMOSPHERES[self.atmosphere_name]
+        self._sky = _make_sky(self.atmosphere["sky"])
         self._far_layer = pygame.Surface((VIRTUAL_W, VIRTUAL_H), pygame.SRCALPHA)
         self._styles = []
         self._stars = []
         self._clouds = []
+        self._weather_particles = []
         self._banana_trail = []
         self._scene_banana_active = False
         self._hud_active = 0
         self._generation = 0
 
+    @property
+    def atmosphere_label(self):
+        return self.atmosphere["label"]
+
+    @property
+    def show_sun(self):
+        return bool(self.atmosphere["show_sun"])
+
+    def set_atmosphere(self, name, rng):
+        """Prépare le ciel et les particules d'une ambiance."""
+        if name not in ATMOSPHERES:
+            name = "sunset"
+        self.atmosphere_name = name
+        self.atmosphere = ATMOSPHERES[name]
+        self._sky = _make_sky(self.atmosphere["sky"])
+
+        self._stars = [
+            (
+                rng.randint(5, VIRTUAL_W - 6),
+                rng.randint(8, 190),
+                rng.randint(0, 3),
+                rng.choice((1, 1, 1, 2)),
+            )
+            for _ in range(self.atmosphere["stars"])
+        ]
+
+        self._clouds = []
+        cloud_alpha = self.atmosphere["cloud_alpha"]
+        cloud_speed = self.atmosphere["cloud_speed"]
+        base_color = self.atmosphere["cloud_color"]
+        for _ in range(self.atmosphere["clouds"]):
+            width = rng.randint(42, 96)
+            height = rng.randint(10, 20)
+            color = (*base_color, rng.randint(*cloud_alpha))
+            cloud = _make_cloud(width, height, color)
+            self._clouds.append(
+                {
+                    "x": rng.uniform(-width, VIRTUAL_W),
+                    "y": rng.randint(58, 182),
+                    "speed": rng.uniform(*cloud_speed),
+                    "surface": cloud,
+                }
+            )
+
+        weather = self.atmosphere["weather"]
+        count = {
+            "rain": 72,
+            "snow": 66,
+            "storm": 100,
+            "sun_haze": 18,
+        }.get(weather, 0)
+        self._weather_particles = [
+            {
+                "x": rng.uniform(0, VIRTUAL_W),
+                "y": rng.uniform(0, VIRTUAL_H),
+                "speed": rng.uniform(58, 105)
+                if weather == "snow"
+                else rng.uniform(190, 310),
+                "size": rng.choice((1, 1, 2, 2, 3)),
+                "phase": rng.uniform(0, math.tau),
+            }
+            for _ in range(count)
+        ]
+
+    def choose_wind(self, rng):
+        """Le même vent pilote la banane, la flèche et toute la météo."""
+        wind = self.atmosphere["wind"]
+        if wind == "storm":
+            return rng.choice((-1, 1)) * rng.randint(7, WIND_MAX)
+        return rng.randint(wind[0], wind[1])
+
     def generate(self, rng: random.Random):
         self._generation += 1
         self._banana_trail.clear()
+        choices = [
+            name
+            for name in ATMOSPHERE_NAMES
+            if self._generation == 1 or name != self.atmosphere_name
+        ]
+        self.set_atmosphere(rng.choice(choices), rng)
 
         count = rng.randint(13, 17)
         remaining = VIRTUAL_W
@@ -143,13 +311,14 @@ class City:
             columns = max(1, (width - 10) // 10)
             rows = max(1, (height - 16) // 12)
             windows = []
+            light_chance = self.atmosphere["window_light"]
             for row in range(rows):
                 line = []
                 for column in range(columns):
                     chance = rng.random()
-                    if chance < 0.44:
+                    if chance < light_chance:
                         state = 1
-                    elif chance < 0.51:
+                    elif chance < min(0.96, light_chance + 0.07):
                         state = 2
                     else:
                         state = 0
@@ -170,35 +339,22 @@ class City:
             )
             x += width
 
-        self._stars = [
-            (
-                rng.randint(5, VIRTUAL_W - 6),
-                rng.randint(8, 190),
-                rng.randint(0, 3),
-                rng.choice((1, 1, 1, 2)),
-            )
-            for _ in range(54)
-        ]
-
-        self._clouds = []
-        for _ in range(4):
-            width = rng.randint(42, 82)
-            height = rng.randint(10, 18)
-            cloud = _make_cloud(width, height, (121, 91, 145, rng.randint(32, 60)))
-            self._clouds.append(
-                {
-                    "x": rng.uniform(-width, VIRTUAL_W),
-                    "y": rng.randint(66, 184),
-                    "speed": rng.uniform(1.0, 3.2),
-                    "surface": cloud,
-                }
-            )
-
         self._build_far_layer(rng)
         self.rebuild_mask()
 
     def _build_far_layer(self, rng):
         self._far_layer.fill((0, 0, 0, 0))
+        far_palette = {
+            "sunny": ((45, 63, 92), (29, 42, 70), (255, 193, 104)),
+            "night": ((12, 18, 44), (6, 12, 31), (255, 221, 116)),
+            "rain": ((31, 43, 57), (18, 29, 43), (229, 181, 98)),
+            "snow": ((55, 63, 82), (34, 43, 64), (255, 222, 139)),
+            "storm": ((20, 22, 38), (9, 12, 27), (245, 210, 125)),
+        }
+        base, shadow, light = far_palette.get(
+            self.atmosphere_name,
+            ((35, 25, 64), (22, 18, 47), (231, 133, 95)),
+        )
         x = -8
         index = 0
         while x < VIRTUAL_W:
@@ -206,17 +362,22 @@ class City:
             height = rng.randint(42, 122)
             bottom = 356
             rect = pygame.Rect(x, bottom - height, width, height)
-            color = (35 + index % 3 * 5, 25, 64 + index % 4 * 4, 220)
+            color = (
+                min(255, base[0] + index % 3 * 5),
+                min(255, base[1] + index % 2 * 3),
+                min(255, base[2] + index % 4 * 4),
+                220,
+            )
             pygame.draw.rect(self._far_layer, color, rect)
             pygame.draw.rect(
                 self._far_layer,
-                (22, 18, 47, 210),
+                (*shadow, 210),
                 (rect.right - 3, rect.top, 3, rect.h),
             )
             if index % 4 == 0:
                 pygame.draw.rect(
                     self._far_layer,
-                    (30, 21, 55, 220),
+                    (*shadow, 220),
                     (rect.centerx - 1, rect.top - 10, 2, 10),
                 )
             for yy in range(rect.top + 9, rect.bottom - 5, 13):
@@ -224,19 +385,19 @@ class City:
                     if rng.random() < 0.16:
                         pygame.draw.rect(
                             self._far_layer,
-                            (231, 133, 95, 85),
+                            (*light, 105),
                             (xx, yy, 3, 4),
                         )
             x += width + rng.randint(2, 7)
             index += 1
-        pygame.draw.rect(self._far_layer, (25, 20, 51, 235), (0, 354, VIRTUAL_W, 46))
+        pygame.draw.rect(self._far_layer, (*shadow, 235), (0, 354, VIRTUAL_W, 46))
 
-    def draw_background(self, surface, scene_time=None):
+    def draw_background(self, surface, scene_time=None, wind_value=0):
         if scene_time is None:
             scene_time = pygame.time.get_ticks() / 1000.0
         surface.blit(self._sky, (0, 0))
 
-        # Etoiles: seulement deux niveaux de lumiere, donc aucun flou.
+        # Étoiles: seulement deux niveaux de lumière, donc aucun flou.
         for x, y, phase, size in self._stars:
             bright = int(scene_time * 2.0 + phase) % 4 == 0
             color = (255, 235, 177) if bright else (157, 142, 183)
@@ -244,13 +405,112 @@ class City:
             if bright and size == 2:
                 pygame.draw.rect(surface, (220, 183, 174), (x - 1, y, 4, 1))
 
+        if self.atmosphere_name == "night":
+            moon = (530, 82)
+            pygame.draw.circle(surface, (255, 242, 190), moon, 25)
+            pygame.draw.circle(surface, (10, 24, 61), (541, 72), 23)
+            pygame.draw.circle(surface, (255, 250, 215), (523, 75), 2)
+
+        wind_strength = max(-WIND_MAX, min(WIND_MAX, float(wind_value)))
+        wind_direction = -1.0 if wind_strength < 0 else (1.0 if wind_strength > 0 else 0.0)
+        wind_factor = abs(wind_strength) / float(WIND_MAX)
         for cloud in self._clouds:
             image = cloud["surface"]
             span = VIRTUAL_W + image.get_width() * 2
-            x = (cloud["x"] + scene_time * cloud["speed"]) % span - image.get_width()
+            travel = scene_time * cloud["speed"] * wind_factor * wind_direction
+            x = (cloud["x"] + travel) % span - image.get_width()
             surface.blit(image, (int(x), cloud["y"]))
 
         surface.blit(self._far_layer, (0, 0))
+        self._draw_background_weather(surface, scene_time, wind_strength)
+
+    def _draw_background_weather(self, surface, scene_time, wind_value):
+        weather = self.atmosphere["weather"]
+        if weather == "sun_haze":
+            haze = pygame.Surface((VIRTUAL_W, VIRTUAL_H), pygame.SRCALPHA)
+            for particle in self._weather_particles:
+                x = int(
+                    (
+                        particle["x"]
+                        + scene_time * (2.0 + wind_value * 0.25)
+                    )
+                    % VIRTUAL_W
+                )
+                y = int(particle["y"] % 250)
+                alpha = 22 + particle["size"] * 8
+                pygame.draw.circle(
+                    haze,
+                    (255, 224, 152, alpha),
+                    (x, y),
+                    particle["size"] + 2,
+                )
+            surface.blit(haze, (0, 0))
+
+        if weather == "storm":
+            # Éclair court et déterministe, environ toutes les huit secondes.
+            flash_phase = scene_time % 8.0
+            if 0.10 < flash_phase < 0.20 or 0.28 < flash_phase < 0.34:
+                flash = pygame.Surface((VIRTUAL_W, VIRTUAL_H), pygame.SRCALPHA)
+                flash.fill((181, 194, 255, 76))
+                surface.blit(flash, (0, 0))
+                points = [(445, 42), (424, 94), (442, 91), (410, 152)]
+                pygame.draw.lines(surface, (235, 240, 255), False, points, 3)
+
+    def draw_weather_foreground(self, surface, scene_time, wind_value):
+        """Météo devant la ville. Le HUD sera dessiné après."""
+        weather = self.atmosphere["weather"]
+        if weather not in ("rain", "snow", "storm"):
+            return
+
+        layer = pygame.Surface((VIRTUAL_W, VIRTUAL_H), pygame.SRCALPHA)
+        wind_value = max(-WIND_MAX, min(WIND_MAX, float(wind_value)))
+        for particle in self._weather_particles:
+            speed = particle["speed"]
+            y = (particle["y"] + scene_time * speed) % (VIRTUAL_H + 28) - 14
+            if weather == "snow":
+                drift = (
+                    scene_time * wind_value * 3.0
+                    + math.sin(scene_time * 1.8 + particle["phase"]) * 10.0
+                )
+                x = (particle["x"] + drift) % (VIRTUAL_W + 16) - 8
+                radius = max(1, particle["size"])
+                pygame.draw.circle(
+                    layer,
+                    (239, 247, 255, 205),
+                    (int(x), int(y)),
+                    radius,
+                )
+            else:
+                drift_speed = wind_value * (5.2 if weather == "storm" else 3.6)
+                x = (particle["x"] + scene_time * drift_speed) % (VIRTUAL_W + 28) - 14
+                slant = int(wind_value * (0.95 if weather == "storm" else 0.65))
+                length = 11 + particle["size"] * (3 if weather == "storm" else 2)
+                color = (
+                    (181, 198, 231, 185)
+                    if weather == "storm"
+                    else (151, 205, 229, 145)
+                )
+                pygame.draw.line(
+                    layer,
+                    color,
+                    (int(x), int(y)),
+                    (int(x + slant), int(y + length)),
+                    2 if weather == "storm" and particle["size"] > 1 else 1,
+                )
+
+        if weather == "snow":
+            # Neige sur les parties de toit encore intactes.
+            for rect in self.rects:
+                y = max(0, rect.top - 2)
+                for x in range(rect.left + 2, rect.right - 2, 3):
+                    try:
+                        solid = self.mask.get_at((x, min(VIRTUAL_H - 1, rect.top + 3))).a
+                    except IndexError:
+                        solid = 0
+                    if solid:
+                        pygame.draw.rect(layer, (229, 240, 250, 235), (x, y, 3, 2))
+
+        surface.blit(layer, (0, 0))
 
     def rebuild_mask(self):
         self.mask.fill((0, 0, 0, 0))
@@ -461,6 +721,32 @@ def draw_wind_indicator(vsurf, font, wind_value, position=None):
         pygame.draw.rect(vsurf, direction_color, (center_x - 2, line_y - 2, 5, 5), 1)
 
 
+def draw_atmosphere_indicator(vsurf, font, city):
+    rect = pygame.Rect(VIRTUAL_W - 172, 53, 164, 32)
+    accents = {
+        "sunset": (255, 163, 79),
+        "sunny": (255, 218, 92),
+        "night": (144, 171, 255),
+        "rain": (105, 190, 226),
+        "snow": (220, 243, 255),
+        "storm": (184, 176, 255),
+    }
+    accent = accents.get(city.atmosphere_name, (220, 220, 230))
+    draw_panel(
+        vsurf,
+        rect,
+        fill=HUD_BG_SOFT,
+        border=HUD_BORDER,
+        accent=accent,
+        shadow=True,
+    )
+    label = render_text(font, "MÉTÉO", (200, 184, 209))
+    name = clip_text(font, city.atmosphere_label, 104)
+    value = render_text(font, name, accent)
+    vsurf.blit(label, (rect.x + 10, rect.y + 8))
+    vsurf.blit(value, (rect.right - value.get_width() - 8, rect.y + 8))
+
+
 def _active_player(city, players, banana_active, explicit):
     previous_flying = city._scene_banana_active
     if explicit is not None:
@@ -570,7 +856,7 @@ def draw_scene(
     if scene_time is None:
         scene_time = pygame.time.get_ticks() / 1000.0
 
-    city.draw_background(vsurf, scene_time)
+    city.draw_background(vsurf, scene_time, wind_value)
 
     expression = sun_expression
     if expression is None:
@@ -579,8 +865,9 @@ def draw_scene(
             bx, by = float(banana_pos.x), float(banana_pos.y)
             if math.hypot(bx - sun_rect.centerx, by - sun_rect.centery) < 90:
                 expression = "surprised"
-    sun_image = spr.get_sun(expression) if hasattr(spr, "get_sun") else spr.sun
-    vsurf.blit(sun_image, sun_image.get_rect(center=sun_rect.center))
+    if city.show_sun:
+        sun_image = spr.get_sun(expression) if hasattr(spr, "get_sun") else spr.sun
+        vsurf.blit(sun_image, sun_image.get_rect(center=sun_rect.center))
     vsurf.blit(city.mask, (0, 0))
 
     current = _active_player(city, players, banana_active, active_player)
@@ -619,10 +906,12 @@ def draw_scene(
         rect = rotated.get_rect(center=(int(banana_pos.x), int(banana_pos.y)))
         vsurf.blit(rotated, rect)
 
+    city.draw_weather_foreground(vsurf, scene_time, wind_value)
     _draw_player_card(vsurf, players[0], 0, current == 0, font, font_small)
     _draw_player_card(vsurf, players[1], 1, current == 1, font, font_small)
     _draw_score_panel(vsurf, players, font, font_small)
     draw_wind_indicator(vsurf, font_small, wind_value)
+    draw_atmosphere_indicator(vsurf, font_small, city)
 
     if status_message:
         draw_toast(vsurf, font_small, status_message)

@@ -59,6 +59,31 @@ class RuntimeSmokeTests(unittest.TestCase):
         self.assertEqual(68, self.game.spr.gorilla_idle.get_height())
         self.assertEqual(76, self.game.spr.sun.get_width())
 
+    def test_all_random_atmospheres_render_and_control_wind(self):
+        import random
+
+        from graphics import ATMOSPHERES
+
+        seen = set()
+        previous = None
+        for seed, name in enumerate(ATMOSPHERES):
+            self.game.city.set_atmosphere(name, random.Random(seed))
+            self.game.wind = self.game.city.choose_wind(random.Random(seed + 20))
+            self.game.draw_scene()
+            seen.add(self.game.city.atmosphere_name)
+            if name == "sunny":
+                self.assertLessEqual(abs(self.game.wind), 4)
+            if name == "storm":
+                self.assertGreaterEqual(abs(self.game.wind), 7)
+
+        self.assertEqual(set(ATMOSPHERES), seen)
+
+        self.game.rng.seed(42)
+        for _ in range(20):
+            self.game.city.generate(self.game.rng)
+            self.assertNotEqual(previous, self.game.city.atmosphere_name)
+            previous = self.game.city.atmosphere_name
+
     def test_menu_and_aim_accept_keyboard(self):
         pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN))
         menu_result = asyncio.run(self.run_menu(self.game))

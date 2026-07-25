@@ -23,6 +23,10 @@ Modes :
 - duel local à deux joueurs ;
 - entraînement sur cible immobile.
 
+Chaque nouvelle ville reçoit une ambiance différente : crépuscule, grand
+soleil, nuit éclairée, pluie, neige ou tempête. La météo suit exactement le
+vent affiché : sens de la flèche, force et vitesse des particules.
+
 Contrôles :
 
 - souris ou tactile : régler les curseurs, puis toucher `TIRER` ;
