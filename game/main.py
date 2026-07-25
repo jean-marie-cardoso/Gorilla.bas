@@ -45,6 +45,7 @@ class Player:
         self.last_angle = 45.0
         self.last_power = 180.0
         self.move_available = True
+        self.crowned = False
 
 
 class Game:
@@ -168,13 +169,14 @@ class Game:
         self.banana_trail.clear()
         self.sun_expression = "happy"
 
-    def reset_match(self):
-        for player in self.players:
+    def reset_match(self, crowned_player=None):
+        for index, player in enumerate(self.players):
             player.score = 0
             player.last_angle = 45.0
             player.last_power = 180.0
             player.state = "idle"
             player.move_available = True
+            player.crowned = index == crowned_player
         self.current_player = 0
         self.other_player = 1
         self.ai_shots_taken = 0
@@ -687,7 +689,7 @@ class Game:
                     victory_action = await self.show_victory(winner)
                     if victory_action != "rematch":
                         return victory_action
-                    self.reset_match()
+                    self.reset_match(crowned_player=winner)
                     continue
 
                 shot_resolved = True

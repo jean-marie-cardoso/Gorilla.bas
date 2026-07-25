@@ -13,7 +13,6 @@ from config import (
     HUD_BG,
     HUD_BG_SOFT,
     HUD_BORDER,
-    INK,
     SKY_GLOW,
     SKY_HORIZON,
     SKY_MIDDLE,
@@ -21,8 +20,6 @@ from config import (
     SUN_ORANGE,
     VIRTUAL_H,
     VIRTUAL_W,
-    WINDOW_DARK,
-    WINDOW_LIT,
     WIND_MAX,
 )
 from ui import clip_text, draw_panel, draw_toast, render_text
@@ -40,6 +37,29 @@ BUILDING_COLORS = [
     (86, 43, 94),
     (99, 48, 97),
 ]
+
+
+def _draw_crown(surface, center_x, bottom_y):
+    """Petite couronne pixel, lisible sur tous les gorilles."""
+    dark = (75, 43, 28)
+    gold = (255, 193, 45)
+    shine = (255, 231, 112)
+    points = [
+        (center_x - 10, bottom_y - 2),
+        (center_x - 9, bottom_y - 11),
+        (center_x - 4, bottom_y - 7),
+        (center_x, bottom_y - 13),
+        (center_x + 4, bottom_y - 7),
+        (center_x + 9, bottom_y - 11),
+        (center_x + 10, bottom_y - 2),
+    ]
+    pygame.draw.polygon(surface, dark, points)
+    inner = [(x, y + 2) for x, y in points]
+    pygame.draw.polygon(surface, gold, inner)
+    pygame.draw.rect(surface, dark, (center_x - 10, bottom_y - 3, 20, 5))
+    pygame.draw.rect(surface, gold, (center_x - 8, bottom_y - 2, 16, 3))
+    pygame.draw.rect(surface, shine, (center_x - 6, bottom_y - 1, 3, 1))
+
 
 ATMOSPHERES = {
     "sunset": {
@@ -123,6 +143,104 @@ ATMOSPHERES = {
 }
 ATMOSPHERE_NAMES = tuple(ATMOSPHERES)
 
+BUILDING_THEMES = {
+    "sunset": {
+        "palette": tuple(BUILDING_COLORS),
+        "outline": (24, 17, 43),
+        "shadow": (19, 13, 35),
+        "highlight": (229, 91, 91),
+        "highlight_amount": 0.18,
+        "window_dark": (38, 30, 68),
+        "window_lit": (255, 220, 117),
+        "window_alt": (225, 103, 98),
+    },
+    "sunny": {
+        "palette": (
+            (55, 74, 105),
+            (76, 91, 118),
+            (125, 83, 84),
+            (146, 101, 90),
+            (98, 74, 105),
+            (69, 90, 113),
+        ),
+        "outline": (20, 31, 51),
+        "shadow": (28, 39, 61),
+        "highlight": (255, 191, 119),
+        "highlight_amount": 0.22,
+        "window_dark": (28, 46, 67),
+        "window_lit": (157, 211, 232),
+        "window_alt": (255, 211, 133),
+    },
+    "night": {
+        "palette": (
+            (15, 24, 54),
+            (20, 30, 66),
+            (25, 35, 74),
+            (31, 39, 82),
+            (35, 43, 89),
+            (23, 32, 69),
+        ),
+        "outline": (5, 9, 25),
+        "shadow": (2, 8, 24),
+        "highlight": (52, 84, 132),
+        "highlight_amount": 0.16,
+        "window_dark": (13, 20, 48),
+        "window_lit": (255, 224, 112),
+        "window_alt": (103, 190, 232),
+    },
+    "rain": {
+        "palette": (
+            (35, 52, 67),
+            (43, 59, 75),
+            (52, 66, 81),
+            (44, 58, 72),
+            (59, 67, 81),
+            (47, 62, 77),
+        ),
+        "outline": (14, 25, 36),
+        "shadow": (21, 33, 44),
+        "highlight": (126, 160, 180),
+        "highlight_amount": 0.19,
+        "window_dark": (21, 35, 47),
+        "window_lit": (255, 211, 117),
+        "window_alt": (116, 189, 217),
+    },
+    "snow": {
+        "palette": (
+            (53, 58, 82),
+            (63, 68, 92),
+            (73, 75, 100),
+            (81, 78, 101),
+            (61, 72, 98),
+            (74, 67, 91),
+        ),
+        "outline": (25, 28, 49),
+        "shadow": (35, 39, 63),
+        "highlight": (201, 222, 239),
+        "highlight_amount": 0.25,
+        "window_dark": (32, 38, 65),
+        "window_lit": (255, 219, 128),
+        "window_alt": (173, 215, 235),
+    },
+    "storm": {
+        "palette": (
+            (17, 21, 40),
+            (22, 25, 47),
+            (27, 29, 53),
+            (31, 31, 57),
+            (24, 26, 50),
+            (35, 33, 59),
+        ),
+        "outline": (4, 7, 19),
+        "shadow": (7, 10, 25),
+        "highlight": (124, 127, 174),
+        "highlight_amount": 0.17,
+        "window_dark": (12, 16, 35),
+        "window_lit": (250, 212, 109),
+        "window_alt": (158, 160, 226),
+    },
+}
+
 
 def _lerp_color(a, b, amount):
     amount = max(0.0, min(1.0, amount))
@@ -191,6 +309,10 @@ class City:
         self._stars = []
         self._clouds = []
         self._weather_particles = []
+        self._living_windows = []
+        self._antenna_lights = []
+        self._damage_revision = 0
+        self._life_checked_revision = -1
         self._banana_trail = []
         self._scene_banana_active = False
         self._hud_active = 0
@@ -204,7 +326,7 @@ class City:
     def show_sun(self):
         return bool(self.atmosphere["show_sun"])
 
-    def set_atmosphere(self, name, rng):
+    def set_atmosphere(self, name, rng, rebuild=True):
         """Prépare le ciel et les particules d'une ambiance."""
         if name not in ATMOSPHERES:
             name = "sunset"
@@ -259,6 +381,9 @@ class City:
             }
             for _ in range(count)
         ]
+        if rebuild and self.rects and self._styles:
+            self._build_far_layer(rng)
+            self.rebuild_mask()
 
     def choose_wind(self, rng):
         """Le même vent pilote la banane, la flèche et toute la météo."""
@@ -275,7 +400,7 @@ class City:
             for name in ATMOSPHERE_NAMES
             if self._generation == 1 or name != self.atmosphere_name
         ]
-        self.set_atmosphere(rng.choice(choices), rng)
+        self.set_atmosphere(rng.choice(choices), rng, rebuild=False)
 
         count = rng.randint(13, 17)
         remaining = VIRTUAL_W
@@ -304,6 +429,8 @@ class City:
 
         self.rects.clear()
         self._styles.clear()
+        building_theme = BUILDING_THEMES[self.atmosphere_name]
+        building_palette = building_theme["palette"]
         for index, (width, height) in enumerate(zip(widths, heights)):
             top = VIRTUAL_H - height
             rect = pygame.Rect(x, top, width, height)
@@ -327,11 +454,15 @@ class City:
                         state = windows[row - 1][column - 1]
                     line.append(state)
                 windows.append(line)
+            palette_slot = (
+                index % len(building_palette)
+                if rng.random() < 0.52
+                else rng.randrange(len(building_palette))
+            )
             self._styles.append(
                 {
-                    "color": BUILDING_COLORS[index % len(BUILDING_COLORS)]
-                    if rng.random() < 0.52
-                    else rng.choice(BUILDING_COLORS),
+                    "color": building_palette[palette_slot],
+                    "palette_slot": palette_slot,
                     "roof": rng.choice(("lip", "antenna", "chimney", "tank")),
                     "windows": windows,
                     "trim": rng.randint(0, 2),
@@ -341,6 +472,158 @@ class City:
 
         self._build_far_layer(rng)
         self.rebuild_mask()
+        self._prepare_building_life(rng)
+
+    def _prepare_building_life(self, rng):
+        self._living_windows.clear()
+        self._antenna_lights.clear()
+
+        for rect, style in zip(self.rects, self._styles):
+            windows = style.get("windows", ())
+            start_y = rect.top + 10
+            for row, line in enumerate(windows):
+                yy = start_y + row * 12
+                if yy + 6 >= rect.bottom or not line:
+                    continue
+                available = rect.w - 10
+                step = max(8, available // len(line))
+                for column, state in enumerate(line):
+                    xx = rect.left + 5 + column * step
+                    if xx + 5 >= rect.right or rng.random() >= 0.09:
+                        continue
+                    self._living_windows.append(
+                        {
+                            "rect": pygame.Rect(xx, yy, 5, 7),
+                            "base_on": state != 0,
+                            "alternate": state == 2,
+                            "period": rng.uniform(5.5, 13.0),
+                            "phase": rng.uniform(0.0, 13.0),
+                            "silhouette": rng.random() < 0.24,
+                            "silhouette_speed": rng.uniform(0.11, 0.22),
+                            "direction": rng.choice((-1, 1)),
+                            "intact": True,
+                        }
+                    )
+
+            if style.get("roof") == "antenna":
+                antenna_x = rect.right - max(5, rect.w // 5)
+                self._antenna_lights.append(
+                    {
+                        "x": antenna_x,
+                        "y": rect.top - 13,
+                        "phase": rng.uniform(0.0, 4.0),
+                    }
+                )
+        self._life_checked_revision = self._damage_revision
+
+    @staticmethod
+    def _living_window_is_on(window, scene_time):
+        cycle = (
+            (scene_time + window["phase"]) % window["period"]
+        ) / window["period"]
+        return cycle < (0.70 if window["base_on"] else 0.22)
+
+    def _window_is_intact(self, rect):
+        points = (
+            rect.center,
+            (rect.left, rect.top),
+            (rect.right - 1, rect.top),
+            (rect.left, rect.bottom - 1),
+            (rect.right - 1, rect.bottom - 1),
+        )
+        try:
+            return all(self.mask.get_at(point).a > 0 for point in points)
+        except IndexError:
+            return False
+
+    def draw_building_life(self, surface, scene_time):
+        """Fenêtres lentes et silhouettes, sans modifier les collisions."""
+        theme = BUILDING_THEMES.get(
+            self.atmosphere_name,
+            BUILDING_THEMES["sunset"],
+        )
+        if self._life_checked_revision != self._damage_revision:
+            for window in self._living_windows:
+                source_rect = window["rect"]
+                rect = (
+                    source_rect.inflate(2, 0)
+                    if window["silhouette"]
+                    else source_rect
+                )
+                window["intact"] = self._window_is_intact(rect)
+            self._life_checked_revision = self._damage_revision
+
+        for window in self._living_windows:
+            source_rect = window["rect"]
+            rect = (
+                source_rect.inflate(2, 0)
+                if window["silhouette"]
+                else source_rect
+            )
+            if not window["intact"]:
+                continue
+
+            pygame.draw.rect(surface, theme["window_dark"], rect)
+            if not self._living_window_is_on(window, scene_time):
+                continue
+
+            light = (
+                theme["window_alt"]
+                if window["alternate"]
+                else theme["window_lit"]
+            )
+            pygame.draw.rect(
+                surface,
+                light,
+                (rect.x + 1, rect.y + 1, rect.width - 2, 5),
+            )
+            glint = _lerp_color(light, (255, 255, 238), 0.48)
+            pygame.draw.rect(
+                surface,
+                glint,
+                (rect.x + 1, rect.y + 1, rect.width - 2, 1),
+            )
+
+            if window["silhouette"]:
+                travel = (
+                    scene_time * window["silhouette_speed"]
+                    + window["phase"]
+                ) % 1.0
+                if window["direction"] < 0:
+                    travel = 1.0 - travel
+                person_x = rect.x + 1 + min(
+                    rect.width - 3,
+                    int(travel * (rect.width - 2)),
+                )
+                person_color = _lerp_color(
+                    theme["window_dark"],
+                    theme["shadow"],
+                    0.55,
+                )
+                pygame.draw.rect(
+                    surface,
+                    person_color,
+                    (person_x, rect.y + 2, 1, 1),
+                )
+                pygame.draw.rect(
+                    surface,
+                    person_color,
+                    (
+                        min(rect.right - 2, person_x),
+                        rect.y + 3,
+                        2,
+                        3,
+                    ),
+                )
+
+        for beacon in self._antenna_lights:
+            bright = int(scene_time * 1.8 + beacon["phase"]) % 4 == 0
+            color = (255, 92, 92) if bright else (96, 41, 61)
+            pygame.draw.rect(
+                surface,
+                color,
+                (beacon["x"] - 1, beacon["y"], 4, 3),
+            )
 
     def _build_far_layer(self, rng):
         self._far_layer.fill((0, 0, 0, 0))
@@ -525,12 +808,28 @@ class City:
                     "trim": 0,
                 }
             self._draw_building(rect, style, index)
+        self._damage_revision += 1
+        self._life_checked_revision = -1
 
     def _draw_building(self, rect, style, index):
-        color = style["color"]
-        outline = (24, 17, 43, 255)
-        shadow = _lerp_color(color, INK, 0.36)
-        highlight = _lerp_color(color, SKY_HORIZON, 0.18)
+        theme = BUILDING_THEMES.get(
+            self.atmosphere_name,
+            BUILDING_THEMES["sunset"],
+        )
+        palette = theme["palette"]
+        palette_slot = style.get("palette_slot")
+        color = (
+            palette[int(palette_slot) % len(palette)]
+            if palette_slot is not None
+            else style["color"]
+        )
+        outline = (*theme["outline"], 255)
+        shadow = _lerp_color(color, theme["shadow"], 0.38)
+        highlight = _lerp_color(
+            color,
+            theme["highlight"],
+            theme["highlight_amount"],
+        )
 
         pygame.draw.rect(self.mask, outline, rect)
         inner = pygame.Rect(rect.x + 2, rect.y + 3, max(1, rect.w - 4), rect.h - 3)
@@ -582,12 +881,33 @@ class City:
                 xx = rect.left + 5 + column * step
                 if xx + 5 >= rect.right:
                     continue
-                pygame.draw.rect(self.mask, (*WINDOW_DARK, 255), (xx, yy, 5, 7))
+                pygame.draw.rect(
+                    self.mask,
+                    (*theme["window_dark"], 255),
+                    (xx, yy, 5, 7),
+                )
                 if state == 1:
-                    pygame.draw.rect(self.mask, (*WINDOW_LIT, 255), (xx + 1, yy + 1, 3, 5))
-                    pygame.draw.rect(self.mask, (255, 242, 171, 255), (xx + 1, yy + 1, 3, 1))
+                    pygame.draw.rect(
+                        self.mask,
+                        (*theme["window_lit"], 255),
+                        (xx + 1, yy + 1, 3, 5),
+                    )
+                    window_glint = _lerp_color(
+                        theme["window_lit"],
+                        (255, 255, 238),
+                        0.48,
+                    )
+                    pygame.draw.rect(
+                        self.mask,
+                        (*window_glint, 255),
+                        (xx + 1, yy + 1, 3, 1),
+                    )
                 elif state == 2:
-                    pygame.draw.rect(self.mask, (225, 103, 98, 255), (xx + 1, yy + 1, 3, 5))
+                    pygame.draw.rect(
+                        self.mask,
+                        (*theme["window_alt"], 255),
+                        (xx + 1, yy + 1, 3, 5),
+                    )
 
 
 def explode_in_city(city: City, center):
@@ -617,6 +937,7 @@ def explode_in_city(city: City, center):
     finally:
         source.unlock()
         city.mask.unlock()
+    city._damage_revision += 1
 
 
 def draw_explosion_frame(vsurf, center, progress, max_radius=42, accent=None):
@@ -869,16 +1190,20 @@ def draw_scene(
         sun_image = spr.get_sun(expression) if hasattr(spr, "get_sun") else spr.sun
         vsurf.blit(sun_image, sun_image.get_rect(center=sun_rect.center))
     vsurf.blit(city.mask, (0, 0))
+    city.draw_building_life(vsurf, scene_time)
 
     current = _active_player(city, players, banana_active, active_player)
 
     # Ombre et gorilles.
     for index, player in enumerate(players):
-        image = spr.gorilla_idle
-        if player.state == "leftup":
-            image = spr.gorilla_leftup
-        elif player.state == "rightup":
-            image = spr.gorilla_rightup
+        if hasattr(spr, "get_gorilla"):
+            image = spr.get_gorilla(index, player.state)
+        else:
+            image = spr.gorilla_idle
+            if player.state == "leftup":
+                image = spr.gorilla_leftup
+            elif player.state == "rightup":
+                image = spr.gorilla_rightup
         rect = image.get_rect(midbottom=(int(player.pos.x), int(player.pos.y)))
         shadow_width = max(12, rect.w - 12)
         pygame.draw.rect(
@@ -887,8 +1212,10 @@ def draw_scene(
             (rect.centerx - shadow_width // 2, int(player.pos.y) - 2, shadow_width, 3),
         )
         vsurf.blit(image, rect)
+        if getattr(player, "crowned", False):
+            _draw_crown(vsurf, rect.centerx, rect.top - 2)
         if index == current and not banana_active:
-            marker_y = max(50, rect.top - 7)
+            marker_y = max(50, rect.top - (20 if getattr(player, "crowned", False) else 7))
             pygame.draw.polygon(
                 vsurf,
                 HUD_ACTIVE,

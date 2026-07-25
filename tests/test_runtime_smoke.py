@@ -59,6 +59,13 @@ class RuntimeSmokeTests(unittest.TestCase):
         self.assertGreaterEqual(len(self.game.city.rects), 13)
         self.assertEqual(68, self.game.spr.gorilla_idle.get_height())
         self.assertEqual(76, self.game.spr.sun.get_width())
+        blue = self.game.spr.get_gorilla(0, "idle")
+        orange = self.game.spr.get_gorilla(1, "idle")
+        self.assertEqual(blue.get_size(), orange.get_size())
+        self.assertNotEqual(
+            pygame.image.tobytes(blue, "RGBA"),
+            pygame.image.tobytes(orange, "RGBA"),
+        )
 
     def test_all_random_atmospheres_render_and_control_wind(self):
         import random
@@ -79,11 +86,35 @@ class RuntimeSmokeTests(unittest.TestCase):
 
         self.assertEqual(set(ATMOSPHERES), seen)
 
+        roof = self.game.city.rects[0]
+        sample = (roof.centerx, roof.top + 5)
+        self.game.city.set_atmosphere("sunny", random.Random(91))
+        sunny_color = self.game.city.mask.get_at(sample)[:3]
+        self.game.city.set_atmosphere("storm", random.Random(92))
+        storm_color = self.game.city.mask.get_at(sample)[:3]
+        self.assertGreater(sum(sunny_color), sum(storm_color))
+
         self.game.rng.seed(42)
         for _ in range(20):
             self.game.city.generate(self.game.rng)
             self.assertNotEqual(previous, self.game.city.atmosphere_name)
             previous = self.game.city.atmosphere_name
+
+    def test_building_lights_keep_living_while_aiming(self):
+        windows = self.game.city._living_windows
+        self.assertGreater(len(windows), 10)
+        self.assertTrue(any(window["silhouette"] for window in windows))
+
+        window = windows[0]
+        cycle_start = (-window["phase"]) % window["period"]
+        on_time = cycle_start + window["period"] * 0.10
+        off_time = cycle_start + window["period"] * 0.86
+        self.assertTrue(
+            self.game.city._living_window_is_on(window, on_time)
+        )
+        self.assertFalse(
+            self.game.city._living_window_is_on(window, off_time)
+        )
 
     def test_menu_and_aim_accept_keyboard(self):
         pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN))
@@ -287,6 +318,21 @@ class RuntimeSmokeTests(unittest.TestCase):
             )
         )
         self.assertEqual("rematch", asyncio.run(self.game.show_victory(0)))
+
+    def test_rematch_winner_wears_crown(self):
+        self.game.reset_match(crowned_player=1)
+        self.assertFalse(self.game.players[0].crowned)
+        self.assertTrue(self.game.players[1].crowned)
+
+        self.game.draw_scene()
+        crowned = pygame.image.tobytes(self.game.vsurf, "RGBA")
+        self.game.players[1].crowned = False
+        self.game.draw_scene()
+        plain = pygame.image.tobytes(self.game.vsurf, "RGBA")
+        self.assertNotEqual(crowned, plain)
+
+        self.game.reset_match()
+        self.assertFalse(any(player.crowned for player in self.game.players))
 
     def test_projectile_resolves_and_effects_draw_at_edges(self):
         async def no_animation(*_args, **_kwargs):

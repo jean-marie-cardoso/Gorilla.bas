@@ -52,6 +52,75 @@ def _finish_pixel_sprite(surface, target_height=None, target_width=None):
     return surface
 
 
+def _orange_team_variant(source):
+    """Recolore seulement le maillot bleu et remplace 1 par 2."""
+    result = source.copy()
+    blue_points = []
+    width, height = result.get_size()
+
+    for y in range(height):
+        for x in range(width):
+            red, green, blue, alpha = result.get_at((x, y))
+            if (
+                alpha > 40
+                and blue > 70
+                and blue > red * 1.18
+                and blue > green * 1.08
+            ):
+                blue_points.append((x, y))
+
+    if not blue_points:
+        return result
+
+    left = min(point[0] for point in blue_points)
+    right = max(point[0] for point in blue_points)
+    top = min(point[1] for point in blue_points)
+    bottom = max(point[1] for point in blue_points)
+
+    # Ombres et reflets du maillot restent identiques, seule la teinte change.
+    for y in range(top, bottom + 1):
+        for x in range(left, right + 1):
+            red, green, blue, alpha = result.get_at((x, y))
+            if (
+                alpha > 20
+                and blue > 38
+                and blue > red * 1.06
+                and blue > green * 1.03
+            ):
+                strength = max(red, green, blue) / 255.0
+                result.set_at(
+                    (x, y),
+                    (
+                        min(255, int(255 * strength)),
+                        min(255, int(104 * strength)),
+                        min(255, int(22 * strength)),
+                        alpha,
+                    ),
+                )
+
+    # Efface le numéro 1 sans toucher aux dents, situées plus haut.
+    number_top = top + max(1, (bottom - top) // 3)
+    center_x = (left + right) // 2
+    for y in range(number_top, bottom + 1):
+        for x in range(max(left, center_x - 5), min(right, center_x + 5) + 1):
+            red, green, blue, alpha = result.get_at((x, y))
+            if alpha > 80 and min(red, green, blue) > 135 and max(red, green, blue) - min(red, green, blue) < 55:
+                result.set_at((x, y), (238, 91, 16, alpha))
+
+    # Petit 2 en pixels, net même sur téléphone.
+    pattern = ("111", "001", "001", "111", "100", "100", "111")
+    start_x = center_x - 1
+    start_y = number_top + max(0, (bottom - number_top - len(pattern)) // 2)
+    for row, line in enumerate(pattern):
+        for column, pixel in enumerate(line):
+            if pixel == "1":
+                result.set_at(
+                    (start_x + column, start_y + row),
+                    (255, 250, 235, 255),
+                )
+    return result
+
+
 def _make_gorilla(pose="idle"):
     """Petit gorille 26x28 dessine sur une vraie grille de pixels."""
     surf = pygame.Surface((26, 28), pygame.SRCALPHA)
@@ -215,6 +284,7 @@ class Sprites:
             }
             self.sun = self.sun_frames["smile"]
             self.banana = _make_banana()
+            self._build_gorilla_teams()
             return
 
         base = ASSETS_DIR
@@ -244,6 +314,23 @@ class Sprites:
             "blink": self.sun,
         }
         self.banana = _scale_to_height(self.banana, BANANA_H_TARGET)
+        self._build_gorilla_teams()
+
+    def _build_gorilla_teams(self):
+        blue = {
+            "idle": self.gorilla_idle,
+            "leftup": self.gorilla_leftup,
+            "rightup": self.gorilla_rightup,
+        }
+        orange = {
+            state: _orange_team_variant(image)
+            for state, image in blue.items()
+        }
+        self.gorilla_teams = (blue, orange)
+
+    def get_gorilla(self, player_index=0, state="idle"):
+        team = self.gorilla_teams[int(player_index) % len(self.gorilla_teams)]
+        return team.get(state, team["idle"])
 
     def get_sun(self, expression="smile"):
         aliases = {

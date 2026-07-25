@@ -26,6 +26,11 @@ Modes :
 Chaque nouvelle ville reçoit une ambiance différente : crépuscule, grand
 soleil, nuit éclairée, pluie, neige ou tempête. La météo suit exactement le
 vent affiché : sens de la flèche, force et vitesse des particules.
+Les deux gorilles sont immédiatement reconnaissables : maillot bleu numéro 1
+et maillot orange numéro 2.
+La ville reste vivante pendant la visée : fenêtres qui s'allument ou
+s'éteignent, silhouettes derrière les vitres et balises d'antenne.
+Pendant une revanche, le vainqueur précédent porte une petite couronne.
 
 Contrôles :
 
