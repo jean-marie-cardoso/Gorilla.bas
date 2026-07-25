@@ -61,6 +61,22 @@ def _draw_crown(surface, center_x, bottom_y):
     pygame.draw.rect(surface, shine, (center_x - 6, bottom_y - 1, 3, 1))
 
 
+def _draw_moon(surface, center):
+    """Lune pleine pixelisée avec halo et petits cratères."""
+    center_x, center_y = center
+    glow = pygame.Surface((76, 76), pygame.SRCALPHA)
+    pygame.draw.circle(glow, (190, 211, 225, 18), (38, 38), 37)
+    pygame.draw.circle(glow, (210, 224, 230, 28), (38, 38), 31)
+    surface.blit(glow, (center_x - 38, center_y - 38))
+
+    pygame.draw.circle(surface, (42, 52, 78), center, 27)
+    pygame.draw.circle(surface, (232, 235, 210), center, 24)
+    pygame.draw.circle(surface, (250, 244, 211), (center_x - 5, center_y - 6), 17)
+    pygame.draw.circle(surface, (185, 192, 178), (center_x + 9, center_y - 8), 4)
+    pygame.draw.circle(surface, (201, 205, 185), (center_x - 9, center_y + 7), 5)
+    pygame.draw.circle(surface, (174, 184, 174), (center_x + 7, center_y + 10), 3)
+
+
 ATMOSPHERES = {
     "sunset": {
         "label": "CRÉPUSCULE",
@@ -325,6 +341,10 @@ class City:
     @property
     def show_sun(self):
         return bool(self.atmosphere["show_sun"])
+
+    @property
+    def show_moon(self):
+        return self.atmosphere_name == "night"
 
     def set_atmosphere(self, name, rng, rebuild=True):
         """Prépare le ciel et les particules d'une ambiance."""
@@ -687,12 +707,6 @@ class City:
             pygame.draw.rect(surface, color, (x, y, size, size))
             if bright and size == 2:
                 pygame.draw.rect(surface, (220, 183, 174), (x - 1, y, 4, 1))
-
-        if self.atmosphere_name == "night":
-            moon = (530, 82)
-            pygame.draw.circle(surface, (255, 242, 190), moon, 25)
-            pygame.draw.circle(surface, (10, 24, 61), (541, 72), 23)
-            pygame.draw.circle(surface, (255, 250, 215), (523, 75), 2)
 
         wind_strength = max(-WIND_MAX, min(WIND_MAX, float(wind_value)))
         wind_direction = -1.0 if wind_strength < 0 else (1.0 if wind_strength > 0 else 0.0)
@@ -1189,6 +1203,8 @@ def draw_scene(
     if city.show_sun:
         sun_image = spr.get_sun(expression) if hasattr(spr, "get_sun") else spr.sun
         vsurf.blit(sun_image, sun_image.get_rect(center=sun_rect.center))
+    elif city.show_moon:
+        _draw_moon(vsurf, sun_rect.center)
     vsurf.blit(city.mask, (0, 0))
     city.draw_building_life(vsurf, scene_time)
 

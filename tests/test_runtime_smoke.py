@@ -81,6 +81,9 @@ class RuntimeSmokeTests(unittest.TestCase):
             seen.add(self.game.city.atmosphere_name)
             if name == "sunny":
                 self.assertLessEqual(abs(self.game.wind), 4)
+            if name == "night":
+                moon_center = self.game.vsurf.get_at(self.game.sun_rect.center)[:3]
+                self.assertGreater(sum(moon_center), 600)
             if name == "storm":
                 self.assertGreaterEqual(abs(self.game.wind), 7)
 
