@@ -68,6 +68,66 @@ class RuntimeSmokeTests(unittest.TestCase):
         shot = asyncio.run(self.ask_angle_power(self.game, self.game.players[0]))
         self.assertEqual((45.0, 180.0), shot)
 
+    def test_player_can_move_once_then_gets_move_back_in_new_city(self):
+        from movement import (
+            animate_relocation,
+            choose_ai_relocation,
+            relocation_targets,
+            select_relocation_target,
+        )
+
+        player = self.game.players[0]
+        targets = relocation_targets(self.game, 0)
+        self.assertTrue(targets)
+
+        pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_b))
+        self.assertEqual(
+            "move",
+            asyncio.run(self.ask_angle_power(self.game, player)),
+        )
+
+        pygame.event.post(
+            pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN)
+        )
+        target = asyncio.run(select_relocation_target(self.game, 0))
+        self.assertIn(target, targets)
+
+        old_clock = self.game.clock
+        self.game.clock = type(
+            "FastClock",
+            (),
+            {"tick": lambda _self, _fps: 50},
+        )()
+        try:
+            self.assertIsNone(
+                asyncio.run(animate_relocation(self.game, 0, target))
+            )
+        finally:
+            self.game.clock = old_clock
+
+        self.assertEqual(target, player.building_index)
+        self.assertFalse(player.move_available)
+        self.assertEqual([], relocation_targets(self.game, 0))
+
+        self.game.new_city()
+        self.assertTrue(player.move_available)
+
+        ai_targets = relocation_targets(self.game, 1)
+        self.assertTrue(ai_targets)
+        old_rng = self.game.rng
+        self.game.rng = type(
+            "AlwaysMove",
+            (),
+            {"random": lambda _self: 0.0},
+        )()
+        try:
+            self.assertIn(
+                choose_ai_relocation(self.game, 1, 0),
+                ai_targets,
+            )
+        finally:
+            self.game.rng = old_rng
+
     def test_one_touch_increments_score_once(self):
         from menu import _menu_rects
 

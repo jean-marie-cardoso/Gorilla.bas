@@ -4,8 +4,8 @@ import pygame
 from config import CREAM, HUD_BG, HUD_BORDER, INK, STATUS_BG
 
 
-def render_text(font, text, color=CREAM, antialias=False):
-    """Texte volontairement net. Compatible avec les anciennes polices."""
+def render_text(font, text, color=CREAM, antialias=True):
+    """Texte antialiasé pour rester lisible après agrandissement."""
     return font.render(str(text), antialias, color)
 
 
@@ -54,7 +54,7 @@ def draw_center_text(
     y,
     color=(255, 255, 255),
     shadow=None,
-    antialias=False,
+    antialias=True,
 ):
     img = render_text(font, text, color, antialias)
     x = surface.get_width() // 2 - img.get_width() // 2

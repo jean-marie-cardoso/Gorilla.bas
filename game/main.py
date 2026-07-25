@@ -20,6 +20,11 @@ from graphics import (
 )
 from intro import show_intro
 from menu import run_menu
+from movement import (
+    animate_relocation,
+    choose_ai_relocation,
+    select_relocation_target,
+)
 from physics import (
     first_segment_collision,
     out_of_bounds,
@@ -39,6 +44,7 @@ class Player:
         self.state = "idle"
         self.last_angle = 45.0
         self.last_power = 180.0
+        self.move_available = True
 
 
 class Game:
@@ -126,8 +132,12 @@ class Game:
         if (target_w, target_h) == (VIRTUAL_W, VIRTUAL_H):
             scaled = self.vsurf
         else:
-            # scale (nearest neighbour) garde les pixels nets.
-            scaled = pygame.transform.scale(self.vsurf, (target_w, target_h))
+            # Le lissage conserve les courbes et surtout le texte lisible sur
+            # les écrans Retina, même avec un facteur non entier.
+            scaled = pygame.transform.smoothscale(
+                self.vsurf,
+                (target_w, target_h),
+            )
         self.screen.blit(scaled, (left, top))
         self._render_rect = pygame.Rect(left, top, target_w, target_h)
 
@@ -152,6 +162,7 @@ class Game:
             building = self.city.rects[player.building_index]
             player.pos = Vector2(building.centerx, building.top)
             player.state = "idle"
+            player.move_available = True
         self.wind = self.rng.randint(-WIND_MAX, WIND_MAX)
         self.banana_active = False
         self.banana_trail.clear()
@@ -163,6 +174,7 @@ class Game:
             player.last_angle = 45.0
             player.last_power = 180.0
             player.state = "idle"
+            player.move_available = True
         self.current_player = 0
         self.other_player = 1
         self.ai_shots_taken = 0
@@ -591,6 +603,19 @@ class Game:
 
             if not self.banana_active:
                 if self.is_ai_turn():
+                    move_target = choose_ai_relocation(
+                        self,
+                        self.current_player,
+                        self.other_player,
+                    )
+                    if move_target is not None:
+                        move_action = await animate_relocation(
+                            self,
+                            self.current_player,
+                            move_target,
+                        )
+                        if move_action in ("quit", "menu"):
+                            return move_action
                     angle_power = await self.wait_for_ai_shot()
                 else:
                     angle_power = await ask_angle_power(
@@ -599,6 +624,22 @@ class Game:
                     )
                 if angle_power is None:
                     return "quit" if self.quit_requested else "menu"
+                if angle_power == "move":
+                    move_target = await select_relocation_target(
+                        self,
+                        self.current_player,
+                    )
+                    if move_target in ("quit", "menu"):
+                        return move_target
+                    if move_target is not None:
+                        move_action = await animate_relocation(
+                            self,
+                            self.current_player,
+                            move_target,
+                        )
+                        if move_action in ("quit", "menu"):
+                            return move_action
+                    continue
                 angle, power = angle_power
                 self.fire_banana(
                     self.players[self.current_player],

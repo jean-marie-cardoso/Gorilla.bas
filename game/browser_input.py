@@ -265,7 +265,7 @@ class BrowserAimControls:
     return true;
   }
 
-  const state = { fired: false, cancelled: false };
+  const state = { fired: false, moveRequested: false, cancelled: false };
   const panel = document.createElement("section");
   panel.id = "gorilla-aim-controls";
   panel.setAttribute("aria-label", "Réglage du tir");
@@ -280,7 +280,8 @@ class BrowserAimControls:
     "justify-content:center",
     "gap:12px",
     "box-sizing:border-box",
-    "width:min(94vw, 660px)",
+    "width:min(calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 12px), 660px)",
+    "max-width:calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 12px)",
     "padding:10px 12px",
     "border:1px solid rgba(255,209,90,.55)",
     "border-radius:14px",
@@ -348,6 +349,27 @@ class BrowserAimControls:
   const angle = makeRange("Angle", 5, 85, 1);
   const power = makeRange("Puissance", 50, 400, 5);
 
+  const move = document.createElement("button");
+  move.type = "button";
+  move.textContent = "BOUGER";
+  move.setAttribute("aria-label", "Changer de toit, utilisable une fois");
+  move.style.cssText = [
+    "flex:0 0 auto",
+    "height:48px",
+    "min-width:88px",
+    "box-sizing:border-box",
+    "border:0",
+    "border-radius:10px",
+    "padding:0 12px",
+    "font:850 14px system-ui,-apple-system,BlinkMacSystemFont,sans-serif",
+    "letter-spacing:.025em",
+    "color:#eafaff",
+    "background:linear-gradient(#399dcc,#176188)",
+    "box-shadow:0 4px 0 #0b3654",
+    "cursor:pointer",
+    "touch-action:manipulation"
+  ].join(";");
+
   const fire = document.createElement("button");
   fire.type = "button";
   fire.textContent = "TIRER";
@@ -371,6 +393,7 @@ class BrowserAimControls:
 
   panel.appendChild(angle.group);
   panel.appendChild(power.group);
+  panel.appendChild(move);
   panel.appendChild(fire);
   document.body.appendChild(panel);
 
@@ -397,6 +420,22 @@ class BrowserAimControls:
     fire.blur();
   });
 
+  move.addEventListener("click", (event) => {
+    event.preventDefault();
+    if (!move.disabled) {
+      state.moveRequested = true;
+    }
+    move.blur();
+  });
+
+  const setMoveAvailable = (available) => {
+    move.disabled = !available;
+    move.textContent = available ? "BOUGER" : "FAIT";
+    move.style.opacity = available ? "1" : ".48";
+    move.style.cursor = available ? "pointer" : "default";
+    move.style.boxShadow = available ? "0 4px 0 #0b3654" : "none";
+  };
+
   const setRange = (control, value) => {
     control.input.value = String(value);
     control.output.value = Math.round(Number(control.input.value)).toString();
@@ -405,26 +444,44 @@ class BrowserAimControls:
 
   const applyLayout = () => {
     const portrait = window.innerHeight > window.innerWidth;
+    const compact = !portrait && (
+      (window.visualViewport ? window.visualViewport.height : window.innerHeight) <= 430
+      || (window.visualViewport ? window.visualViewport.width : window.innerWidth) <= 700
+    );
     panel.style.flexWrap = portrait ? "wrap" : "nowrap";
-    panel.style.gap = portrait ? "6px 10px" : "12px";
-    panel.style.padding = portrait ? "7px 9px" : "10px 12px";
-    fire.style.height = portrait ? "42px" : "48px";
-    fire.style.minWidth = portrait ? "96px" : "102px";
+    panel.style.gap = compact ? "5px" : (portrait ? "6px 10px" : "12px");
+    panel.style.padding = compact ? "6px" : (portrait ? "7px 9px" : "10px 12px");
+    fire.style.height = compact || portrait ? "42px" : "48px";
+    fire.style.minWidth = compact ? "78px" : (portrait ? "96px" : "102px");
+    move.style.height = compact || portrait ? "42px" : "48px";
+    move.style.minWidth = compact ? "72px" : (portrait ? "82px" : "88px");
+    move.style.padding = compact ? "0 7px" : "0 12px";
+    move.style.fontSize = compact ? "12px" : "14px";
   };
   window.addEventListener("resize", applyLayout);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", applyLayout, { passive: true });
+  }
 
   window.GorillaAimControls = {
-    show(angleValue, powerValue) {
+    show(angleValue, powerValue, canMove) {
       state.fired = false;
+      state.moveRequested = false;
       state.cancelled = false;
       setRange(angle, angleValue);
       setRange(power, powerValue);
+      setMoveAvailable(Boolean(canMove));
       applyLayout();
       panel.style.display = "flex";
+      document.body.classList.add("aiming");
+      window.GorillaMobileShell?.scheduleViewportSync();
     },
     hide() {
       panel.style.display = "none";
+      document.body.classList.remove("aiming");
+      window.GorillaMobileShell?.scheduleViewportSync();
       state.fired = false;
+      state.moveRequested = false;
       state.cancelled = false;
     },
     setValues(angleValue, powerValue) {
@@ -442,6 +499,11 @@ class BrowserAimControls:
       state.fired = false;
       return value;
     },
+    moveRequested() {
+      const value = state.moveRequested;
+      state.moveRequested = false;
+      return value;
+    },
     cancelled() {
       const value = state.cancelled;
       state.cancelled = false;
@@ -454,11 +516,15 @@ class BrowserAimControls:
 """
         return bool(self._eval(code))
 
-    def show(self, angle=45.0, power=180.0):
+    def show(self, angle=45.0, power=180.0, can_move=False):
         if self.available:
             self._eval(
-                "window.GorillaAimControls.show(%s, %s)"
-                % (json.dumps(float(angle)), json.dumps(float(power)))
+                "window.GorillaAimControls.show(%s, %s, %s)"
+                % (
+                    json.dumps(float(angle)),
+                    json.dumps(float(power)),
+                    json.dumps(bool(can_move)),
+                )
             )
 
     def hide(self):
@@ -484,6 +550,12 @@ class BrowserAimControls:
 
     def fired(self):
         return bool(self.available and self._eval("window.GorillaAimControls.fired()"))
+
+    def move_requested(self):
+        return bool(
+            self.available
+            and self._eval("window.GorillaAimControls.moveRequested()")
+        )
 
     def cancelled(self):
         return bool(self.available and self._eval("window.GorillaAimControls.cancelled()"))

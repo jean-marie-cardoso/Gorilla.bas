@@ -30,7 +30,7 @@ async def custom_site():
 
 
     bundle = "{{cookiecutter.archive}}"
-    archive_version = "qbasic-deluxe-4"
+    archive_version = "qbasic-deluxe-7"
 
     # the C or js loader could do that but be explicit.
     appdir = Path(f"/data/data/{bundle}") # /data/data/{{cookiecutter.archive}}
@@ -187,9 +187,13 @@ function show_loader() {
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes"/>
     <meta name="apple-mobile-web-app-title" content="Gorillas">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="format-detection" content="telephone=no">
 
 
     <link rel="icon" type="image/png" href="favicon.png" sizes="512x512">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" sizes="180x180">
+    <link rel="manifest" href="manifest.webmanifest">
 
     <style>
         :root {
@@ -353,6 +357,7 @@ function show_loader() {
            border: 1px solid black;
         }
     </style>
+    <link rel="stylesheet" href="mobile-shell.css?v=7">
 
     <script>
 /*
@@ -549,6 +554,7 @@ frameborder="1"
     }
 
     </script>
+    <script src="mobile-shell.js?v=7"></script>
 
 </body>
 </html>

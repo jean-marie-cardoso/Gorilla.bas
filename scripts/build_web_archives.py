@@ -24,6 +24,7 @@ BUNDLE_FILES = (
     "intro.py",
     "main.py",
     "menu.py",
+    "movement.py",
     "physics.py",
     "sprites.py",
     "ui.py",

@@ -6,6 +6,7 @@ import pygame
 
 from browser_input import BrowserAimControls
 from config import FPS, VIRTUAL_H, VIRTUAL_W
+from movement import can_relocate
 from ui import draw_center_text
 
 
@@ -107,7 +108,8 @@ def _aim_rects():
         "panel": pygame.Rect(374, 220, 250, 166),
         "angle": pygame.Rect(394, 267, 210, 12),
         "power": pygame.Rect(394, 317, 210, 12),
-        "fire": pygame.Rect(426, 344, 146, 32),
+        "move": pygame.Rect(394, 344, 96, 32),
+        "fire": pygame.Rect(498, 344, 106, 32),
     }
 
 
@@ -201,6 +203,29 @@ def _draw_aim_panel(game, player, angle, power, pointer=None):
         (255, 157, 54),
     )
 
+    move = rects["move"]
+    move_enabled = can_relocate(game, game.current_player)
+    move_hovered = (
+        move_enabled
+        and pointer is not None
+        and move.collidepoint(pointer)
+    )
+    pygame.draw.rect(surface, (15, 35, 55), move.move(0, 3), border_radius=8)
+    pygame.draw.rect(
+        surface,
+        (103, 201, 235)
+        if move_hovered
+        else ((43, 128, 169) if move_enabled else (58, 65, 78)),
+        move,
+        border_radius=8,
+    )
+    move_text = game.font_small.render(
+        "BOUGER" if move_enabled else "UTILISÉ",
+        True,
+        (239, 251, 255) if move_enabled else (157, 164, 177),
+    )
+    surface.blit(move_text, move_text.get_rect(center=move.center))
+
     fire = rects["fire"]
     hovered = pointer is not None and fire.collidepoint(pointer)
     pygame.draw.rect(surface, (119, 68, 2), fire.move(0, 3), border_radius=8)
@@ -214,7 +239,7 @@ def _draw_aim_panel(game, player, angle, power, pointer=None):
     surface.blit(fire_text, fire_text.get_rect(center=fire.center))
 
     help_text = game.font_small.render(
-        "Flèches : régler   •   Entrée : tirer   •   Échap : menu",
+        "Flèches : régler   •   B : bouger   •   Entrée : tirer",
         True,
         (226, 236, 246),
     )
@@ -234,7 +259,11 @@ async def ask_angle_power(game, player):
     """
     angle, power = get_remembered_shot(player)
     web_controls = BrowserAimControls()
-    web_controls.show(angle, power)
+    web_controls.show(
+        angle,
+        power,
+        can_move=can_relocate(game, game.current_player),
+    )
     active_slider = None
     pointer = None
     game.menu_requested = False
@@ -264,6 +293,10 @@ async def ask_angle_power(game, player):
                 if web_controls.cancelled():
                     game.menu_requested = True
                     return None
+                if web_controls.move_requested():
+                    if can_relocate(game, game.current_player):
+                        _play_sound(game)
+                        return "move"
                 if web_controls.fired():
                     _play_sound(game)
                     return remember_shot(player, angle, power)
@@ -299,6 +332,11 @@ async def ask_angle_power(game, player):
                     if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
                         _play_sound(game)
                         return remember_shot(player, angle, power)
+                    if event.key == pygame.K_b:
+                        if can_relocate(game, game.current_player):
+                            _play_sound(game)
+                            return "move"
+                        continue
                     if event.key == pygame.K_m:
                         _toggle_sound(game)
                         continue
@@ -350,6 +388,13 @@ async def ask_angle_power(game, player):
                     elif position is not None and _aim_rects()["fire"].collidepoint(position):
                         _play_sound(game)
                         return remember_shot(player, angle, power)
+                    elif (
+                        position is not None
+                        and _aim_rects()["move"].collidepoint(position)
+                        and can_relocate(game, game.current_player)
+                    ):
+                        _play_sound(game)
+                        return "move"
 
             game.draw_scene()
             _draw_aim_guide(game, player, angle, power)

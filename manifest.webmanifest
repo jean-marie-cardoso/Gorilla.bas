@@ -1,0 +1,30 @@
+{
+  "name": "Gorillas — QBASIC Deluxe",
+  "short_name": "Gorillas",
+  "description": "Duel de bananes explosives avec angle, vent et gravité.",
+  "id": "./",
+  "start_url": "./?source=app",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": [
+    "fullscreen",
+    "standalone"
+  ],
+  "orientation": "landscape",
+  "background_color": "#06111d",
+  "theme_color": "#06111d",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

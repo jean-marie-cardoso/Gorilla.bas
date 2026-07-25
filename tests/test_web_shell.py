@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import unittest
 
@@ -16,6 +17,63 @@ class WebShellTests(unittest.TestCase):
                 self.assertIn("requestAnimationFrame", content)
                 self.assertNotIn("setInterval(", content)
                 self.assertEqual(1, content.count('name="viewport"'))
+                self.assertIn('rel="manifest"', content)
+                self.assertIn('rel="apple-touch-icon"', content)
+                self.assertIn("mobile-shell.css?v=7", content)
+                self.assertIn("mobile-shell.js?v=7", content)
+
+    def test_mobile_fullscreen_files_and_manifest(self):
+        required = (
+            "mobile-shell.css",
+            "mobile-shell.js",
+            "manifest.webmanifest",
+            "sw.js",
+            "icon-192.png",
+            "apple-touch-icon.png",
+        )
+        for relative_name in required:
+            with self.subTest(relative_name=relative_name):
+                self.assertTrue((PROJECT_ROOT / relative_name).is_file())
+
+        script = (PROJECT_ROOT / "mobile-shell.js").read_text(encoding="utf-8")
+        self.assertIn("requestFullscreen", script)
+        self.assertIn('screen.orientation.lock("landscape")', script)
+        self.assertIn("window.visualViewport", script)
+        self.assertIn("serviceWorker.register", script)
+        self.assertIn("Sur l’écran d’accueil", script)
+
+        stylesheet = (PROJECT_ROOT / "mobile-shell.css").read_text(encoding="utf-8")
+        self.assertIn("safe-area-inset-left", stylesheet)
+        self.assertIn("compact-landscape", stylesheet)
+        self.assertIn("--game-width", stylesheet)
+
+        browser_input = (
+            PROJECT_ROOT / "game" / "browser_input.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn('move.textContent = "BOUGER"', browser_input)
+        self.assertIn("moveRequested()", browser_input)
+
+        manifest = json.loads(
+            (PROJECT_ROOT / "manifest.webmanifest").read_text(encoding="utf-8")
+        )
+        self.assertEqual("fullscreen", manifest["display"])
+        self.assertEqual("landscape", manifest["orientation"])
+        self.assertIn("standalone", manifest["display_override"])
+
+    def test_pages_workflow_ships_mobile_shell(self):
+        workflow = (
+            PROJECT_ROOT / ".github" / "workflows" / "pages.yml"
+        ).read_text(encoding="utf-8")
+        for relative_name in (
+            "manifest.webmanifest",
+            "mobile-shell.css",
+            "mobile-shell.js",
+            "sw.js",
+            "icon-192.png",
+            "apple-touch-icon.png",
+        ):
+            with self.subTest(relative_name=relative_name):
+                self.assertIn(relative_name, workflow)
 
 
 if __name__ == "__main__":

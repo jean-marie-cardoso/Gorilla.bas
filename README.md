@@ -26,8 +26,11 @@ Modes :
 Contrôles :
 
 - souris ou tactile : régler les curseurs, puis toucher `TIRER` ;
+- `BOUGER` : une fois par ville, choisir un toit voisin puis tirer ;
+- bouton `⛶` : passer en plein écran sur Android, iPad et ordinateur ;
 - flèches : angle et puissance ; `Maj` fait un grand pas ;
 - `Entrée` ou `Espace` : tirer ;
+- `B` : choisir un autre toit ;
 - `R` : remettre la visée à 45° / 180 ;
 - `M` : couper ou remettre le son ;
 - `F` ou `F11` : plein écran ;
@@ -72,6 +75,19 @@ même trajectoire que le jeu, avec pas fixe et collision sur tout le segment.
 
 Le rendu logique reste en 640×400 et conserve toujours son ratio. Sur petit
 écran vertical, la page demande de passer en paysage.
+
+### Plein écran sur téléphone
+
+Sur Android et iPad, toucher le bouton `⛶` masque directement les barres du
+navigateur et tente de verrouiller le jeu en paysage.
+
+Safari iPhone ne permet pas encore le plein écran d'un élément web. Toucher
+`⛶` affiche donc la méthode fiable : `Partager` → `Sur l'écran d'accueil`,
+puis ouvrir Gorillas depuis son icône. Le manifeste lance alors le jeu comme
+une application, sans les barres Safari.
+
+Les encoches, la Dynamic Island, la barre d'accueil et les changements de
+taille de Safari sont pris en compte avec les zones sûres du téléphone.
 
 ## Publication
 

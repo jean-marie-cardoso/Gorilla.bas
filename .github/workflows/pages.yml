@@ -60,7 +60,8 @@ jobs:
       - name: Prepare Pages files
         run: |
           mkdir -p _site
-          cp index.html favicon.png .nojekyll _site/
+          cp index.html favicon.png icon-192.png apple-touch-icon.png .nojekyll _site/
+          cp manifest.webmanifest mobile-shell.css mobile-shell.js sw.js _site/
           cp dist/gorilla.version.web.tar.gz dist/gorilla.version.web.apk _site/
 
       - name: Configure Pages
