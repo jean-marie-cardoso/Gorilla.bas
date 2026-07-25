@@ -1,4 +1,4 @@
-name: Deploy GitHub Pages
+name: Test, build and deploy GitHub Pages
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  SOURCE_DATE_EPOCH: "0"
 
 permissions:
   contents: read
@@ -19,7 +20,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  build-and-deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -29,13 +30,46 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install runtime dependency
+        run: python -m pip install pygame==2.6.1
+
+      - name: Compile
+        run: python -m compileall -q game scripts tests
+
+      - name: Import game modules
+        env:
+          SDL_VIDEODRIVER: dummy
+          SDL_AUDIODRIVER: dummy
+          PYTHONPATH: game
+        run: python -c "import ai, main, physics"
+
+      - name: Test
+        env:
+          SDL_VIDEODRIVER: dummy
+          SDL_AUDIODRIVER: dummy
+        run: python -m unittest discover -s tests -v
+
+      - name: Build web archives
+        run: python scripts/build_web_archives.py --output-dir dist
+
+      - name: Prepare Pages files
+        run: |
+          mkdir -p _site
+          cp index.html favicon.png .nojekyll _site/
+          cp dist/gorilla.version.web.tar.gz dist/gorilla.version.web.apk _site/
+
       - name: Configure Pages
         uses: actions/configure-pages@v6
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:
-          path: .
+          path: _site
 
       - name: Deploy to GitHub Pages
         id: deployment
