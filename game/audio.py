@@ -162,6 +162,9 @@ class SoundBank:
       else if (name === "explosion") {
         noise(audio, now, .38, .22);
         tone(audio, now, .32, 90, 38, .11, "sawtooth");
+      } else if (name === "thunder") {
+        noise(audio, now, .72, .16);
+        tone(audio, now, .58, 72, 28, .08, "sawtooth");
       } else {
         const notes = name === "victory"
           ? [392, 523.25, 659.25, 783.99, 1046.5]
@@ -204,6 +207,7 @@ class SoundBank:
                 "throw": _tone(0.19, 240, 920, 0.28),
                 "impact": _noise(0.10, 0.28, seed=7),
                 "explosion": _noise(0.38, 0.62, seed=19, low_tone=0.9),
+                "thunder": _noise(0.72, 0.42, seed=29, low_tone=0.65),
                 "score": _sequence((523.25, 659.25, 783.99), 0.085, 0.24),
                 "victory": _sequence(
                     (392.00, 523.25, 659.25, 783.99, 1046.50),
@@ -229,6 +233,7 @@ class SoundBank:
                 "throw",
                 "impact",
                 "explosion",
+                "thunder",
                 "score",
                 "victory",
             }:

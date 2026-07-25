@@ -133,6 +133,34 @@ class RuntimeSmokeTests(unittest.TestCase):
             self.game.city._living_window_is_on(window, off_time)
         )
 
+    def test_city_styles_rooftop_objects_and_smoke(self):
+        import random
+
+        from graphics import CITY_STYLES
+
+        rng = random.Random(1234)
+        seen = set()
+        roofs = set()
+        for _ in range(70):
+            self.game.city.generate(rng)
+            seen.add(self.game.city.city_style_name)
+            roofs.update(style["roof"] for style in self.game.city._styles)
+
+        self.assertEqual(set(CITY_STYLES), seen)
+        self.assertTrue(
+            {"billboard", "mansard", "neon", "solar", "dome", "dish"}
+            .issubset(roofs)
+        )
+
+        self.explode_in_city(
+            self.game.city,
+            (320, 260),
+            scene_time=2.0,
+            strong=True,
+        )
+        self.assertTrue(self.game.city._smoke_plumes)
+        self.game.city.draw_damage_effects(self.game.vsurf, 2.5)
+
     def test_menu_and_aim_accept_keyboard(self):
         pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN))
         menu_result = asyncio.run(self.run_menu(self.game))
@@ -351,6 +379,40 @@ class RuntimeSmokeTests(unittest.TestCase):
         self.game.reset_match()
         self.assertFalse(any(player.crowned for player in self.game.players))
 
+    def test_city_intro_replay_and_storm_thunder(self):
+        old_clock = self.game.clock
+        self.game.clock = type(
+            "FastClock",
+            (),
+            {"tick": lambda _self, _fps: 240},
+        )()
+        try:
+            self.game.city_intro_pending = True
+            self.assertIsNone(asyncio.run(self.game.show_city_intro()))
+            self.assertFalse(self.game.city_intro_pending)
+
+            self.game.shot_path = [
+                pygame.Vector2(80, 140),
+                pygame.Vector2(320, 90),
+                pygame.Vector2(560, 210),
+            ]
+            self.assertIsNone(asyncio.run(self.game.play_winning_replay()))
+        finally:
+            self.game.clock = old_clock
+
+        calls = []
+        self.game.sound = type(
+            "RecordedSound",
+            (),
+            {"play": lambda _self, name: calls.append(name)},
+        )()
+        self.game.city.set_atmosphere("storm", __import__("random").Random(55))
+        self.game.scene_time = 8.15
+        self.game._last_thunder_cycle = -1
+        self.game.draw_scene()
+        self.game.draw_scene()
+        self.assertEqual(["thunder"], calls)
+
     def test_projectile_resolves_and_effects_draw_at_edges(self):
         async def no_animation(*_args, **_kwargs):
             return None
@@ -397,7 +459,7 @@ class RuntimeSmokeTests(unittest.TestCase):
         self.draw_menu(self.game, self.MODE_SOLO_AI, "hard", 9, (320, 200))
         self.assertTrue(self.game.sound.ensure_ready())
         self.assertEqual(
-            {"click", "throw", "impact", "explosion", "score", "victory"},
+            {"click", "throw", "impact", "explosion", "thunder", "score", "victory"},
             set(self.game.sound.sounds),
         )
 
