@@ -175,6 +175,60 @@ class RuntimeSmokeTests(unittest.TestCase):
         )
         self.game.city.draw_damage_effects(self.game.vsurf, 2.5)
 
+    def test_parachutists_fire_and_canadair_stay_bounded(self):
+        city = self.game.city
+        for _ in range(5):
+            city.launch_parachutists((320, 250), 2.0, direction=1)
+        self.assertGreaterEqual(len(city._parachutists), 2)
+        self.assertLessEqual(len(city._parachutists), 8)
+
+        for offset in range(10):
+            city.add_damage_effect(
+                (320 + offset, 260),
+                scene_time=2.0,
+                strong=True,
+            )
+            if city._fires:
+                break
+        self.assertTrue(city._fires)
+        self.assertLessEqual(len(city._fires), 2)
+        for scene_time in (2.1, 3.0, 4.8, 7.5):
+            city.draw_emergency_effects(self.game.vsurf, scene_time)
+
+    def test_low_building_hit_collapses_to_rubble(self):
+        city = self.game.city
+        index = max(
+            range(len(city.rects)),
+            key=lambda item: city.rects[item].height,
+        )
+        original = city.rects[index].copy()
+        high_impact = (original.centerx, original.top + 8)
+        low_impact = (original.centerx, original.centery)
+        self.assertFalse(city.should_collapse_at(high_impact))
+        self.assertTrue(city.should_collapse_at(low_impact))
+
+        collapse = city.collapse_building_at(low_impact, scene_time=1.0)
+        self.assertIsNotNone(collapse)
+        collapsed_index, old_rect, rubble = collapse
+        self.assertEqual(index, collapsed_index)
+        self.assertEqual(original, old_rect)
+        self.assertLess(rubble.height, original.height)
+        self.assertEqual(original.bottom, rubble.bottom)
+        self.assertTrue(city._collapses)
+        city.draw_emergency_effects(self.game.vsurf, 1.5)
+
+    def test_descending_banana_warns_parachutists(self):
+        building = self.game.city.rects[len(self.game.city.rects) // 2]
+        self.game.banana_active = True
+        self.game.banana_pos = pygame.Vector2(
+            building.centerx,
+            building.top - 55,
+        )
+        self.game.banana_vel = pygame.Vector2(0, 75)
+        self.game._preview_building_impact()
+        self.assertTrue(self.game._parachute_warning_for_shot)
+        self.assertTrue(self.game.city._parachutists)
+
     def test_players_start_on_different_roof_levels(self):
         for _ in range(20):
             self.game.new_city()
@@ -455,7 +509,10 @@ class RuntimeSmokeTests(unittest.TestCase):
             return None
 
         result = asyncio.run(resolve())
-        self.assertIn(result, {"miss", "block", "hit_p0", "hit_p1"})
+        self.assertIn(
+            result,
+            {"miss", "block", "collapse", "hit_p0", "hit_p1"},
+        )
 
         for point in ((0, 0), (639, 399), (320, 200)):
             self.explode_in_city(self.game.city, point)

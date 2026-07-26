@@ -151,8 +151,8 @@ async def select_relocation_target(game, player_index):
             if event.type == pygame.QUIT:
                 game.quit_requested = True
                 return "quit"
-            if event.type == pygame.VIDEORESIZE:
-                game.screen = pygame.display.get_surface()
+            if game.is_resize_event(event):
+                game.resize_display(event)
                 continue
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:

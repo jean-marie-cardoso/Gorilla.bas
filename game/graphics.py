@@ -372,6 +372,9 @@ class City:
         self._antenna_lights = []
         self._smoke_plumes = []
         self._debris_particles = []
+        self._parachutists = []
+        self._fires = []
+        self._collapses = []
         self._damage_revision = 0
         self._life_checked_revision = -1
         self._banana_trail = []
@@ -471,6 +474,9 @@ class City:
         self._banana_trail.clear()
         self._smoke_plumes.clear()
         self._debris_particles.clear()
+        self._parachutists.clear()
+        self._fires.clear()
+        self._collapses.clear()
         choices = [
             name
             for name in ATMOSPHERE_NAMES
@@ -779,6 +785,93 @@ class City:
                 (beacon["x"] - 1, beacon["y"], 4, 3),
             )
 
+    def _building_index_at(self, center):
+        cx, cy = int(center[0]), int(center[1])
+        candidates = [
+            (index, rect)
+            for index, rect in enumerate(self.rects)
+            if rect.left <= cx <= rect.right and rect.top <= cy <= rect.bottom
+        ]
+        if not candidates:
+            return None
+        return min(candidates, key=lambda item: abs(item[1].centerx - cx))[0]
+
+    def should_collapse_at(self, center):
+        index = self._building_index_at(center)
+        if index is None:
+            return False
+        rect = self.rects[index]
+        collapse_line = rect.top + max(28, int(rect.height * 0.30))
+        return int(center[1]) >= collapse_line
+
+    def collapse_building_at(self, center, scene_time=None):
+        """Réduit en gravats un bâtiment touché sous son tiers supérieur."""
+        index = self._building_index_at(center)
+        if index is None or not self.should_collapse_at(center):
+            return None
+
+        old_rect = self.rects[index].copy()
+        fragment = pygame.Surface(old_rect.size, pygame.SRCALPHA)
+        fragment.blit(self.mask, (0, 0), old_rect)
+        rubble_height = max(14, min(24, old_rect.height // 5))
+        rubble = pygame.Rect(
+            old_rect.x,
+            old_rect.bottom - rubble_height,
+            old_rect.w,
+            rubble_height,
+        )
+        clear_rect = pygame.Rect(
+            old_rect.x - 3,
+            old_rect.top - 20,
+            old_rect.w + 6,
+            old_rect.height + 20,
+        )
+        pygame.draw.rect(self.mask, (0, 0, 0, 0), clear_rect)
+
+        theme = BUILDING_THEMES.get(
+            self.atmosphere_name,
+            BUILDING_THEMES["sunset"],
+        )
+        outline = (*theme["outline"], 255)
+        rubble_color = (*theme["shadow"], 255)
+        points = [(rubble.left, rubble.bottom)]
+        step = max(7, rubble.width // 6)
+        x = rubble.left
+        while x < rubble.right:
+            peak = rubble.top + ((x * 7 + index * 11) % 9)
+            points.append((x, peak))
+            x += step
+        points.extend([(rubble.right, rubble.top + 5), (rubble.right, rubble.bottom)])
+        pygame.draw.polygon(self.mask, outline, points)
+        inner = [
+            (x, min(rubble.bottom - 2, y + 3))
+            for x, y in points
+        ]
+        pygame.draw.polygon(self.mask, rubble_color, inner)
+        for chunk in range(5):
+            chunk_x = rubble.left + 4 + (chunk * 13 + index * 5) % max(5, rubble.width - 8)
+            chunk_y = rubble.top + 5 + chunk % 3 * 4
+            pygame.draw.rect(
+                self.mask,
+                outline,
+                (chunk_x, chunk_y, 4 + chunk % 3, 3),
+            )
+
+        self.rects[index] = rubble
+        self._damage_revision += 1
+        if scene_time is not None:
+            self._collapses.append(
+                {
+                    "rect": old_rect,
+                    "image": fragment,
+                    "start": float(scene_time),
+                    "duration": 1.15,
+                    "seed": index * 19 + old_rect.x,
+                }
+            )
+            self._collapses = self._collapses[-2:]
+        return index, old_rect, rubble
+
     def add_damage_effect(self, center, scene_time, strong=False):
         cx, cy = int(center[0]), int(center[1])
         seed = (cx * 31 + cy * 17) % 97
@@ -814,6 +907,232 @@ class City:
                 }
             )
         self._debris_particles = self._debris_particles[-80:]
+        fire_roll = (seed + self._damage_revision * 23) % 10
+        if fire_roll < (6 if strong else 4):
+            self._fires.append(
+                {
+                    "x": cx,
+                    "y": cy,
+                    "start": float(scene_time),
+                    "seed": seed,
+                    "direction": -1 if seed % 2 else 1,
+                    "plane_start": float(scene_time) + 2.0,
+                    "flight_duration": 3.2,
+                }
+            )
+            self._fires = self._fires[-2:]
+
+    def launch_parachutists(self, center, scene_time, direction=1):
+        """Fait évacuer quelques habitants du bâtiment menacé."""
+        cx, cy = int(center[0]), int(center[1])
+        candidates = [
+            rect
+            for rect in self.rects
+            if rect.left <= cx <= rect.right and rect.top <= cy <= rect.bottom
+        ]
+        roof_y = min(
+            (rect.top for rect in candidates),
+            default=max(70, cy - 50),
+        )
+        count = 2 + (abs(cx + self._generation) % 2)
+        for index in range(count):
+            side = -1 if index % 2 == 0 else 1
+            self._parachutists.append(
+                {
+                    "x": cx + (index - (count - 1) / 2.0) * 9,
+                    "y": roof_y - 3,
+                    "start": float(scene_time) + index * 0.08,
+                    "drift": side * (24 + index * 4) + int(direction) * 6,
+                    "phase": (cx * 0.07 + index * 1.7) % math.tau,
+                    "duration": 3.4,
+                }
+            )
+        self._parachutists = self._parachutists[-8:]
+
+    @staticmethod
+    def _draw_canadair(surface, x, y, direction, propeller_phase):
+        sign = 1 if direction >= 0 else -1
+        body = (247, 205, 56)
+        shade = (205, 77, 54)
+        ink = (30, 38, 55)
+        points = [
+            (x - sign * 21, y),
+            (x + sign * 17, y - 3),
+            (x + sign * 23, y),
+            (x + sign * 17, y + 4),
+            (x - sign * 21, y + 4),
+        ]
+        pygame.draw.polygon(surface, body, points)
+        pygame.draw.line(surface, shade, (x - 18, y + 2), (x + 17, y + 2), 2)
+        pygame.draw.polygon(
+            surface,
+            body,
+            [(x - 5, y + 1), (x - 16, y + 11), (x + 11, y + 3)],
+        )
+        pygame.draw.polygon(
+            surface,
+            ink,
+            [(x - sign * 18, y), (x - sign * 22, y - 8), (x - sign * 13, y)],
+        )
+        nose_x = x + sign * 24
+        pygame.draw.line(
+            surface,
+            (220, 235, 241),
+            (nose_x, y - 6 - propeller_phase),
+            (nose_x, y + 8 + propeller_phase),
+            2,
+        )
+        pygame.draw.circle(surface, ink, (x - 10, y + 6), 2)
+        pygame.draw.circle(surface, ink, (x + 10, y + 6), 2)
+
+    def draw_emergency_effects(self, surface, scene_time):
+        """Parachutistes, incendies et Canadairs, avec listes très limitées."""
+        collapses_alive = []
+        for collapse in self._collapses:
+            age = scene_time - collapse["start"]
+            if age < 0:
+                collapses_alive.append(collapse)
+                continue
+            if age >= collapse["duration"]:
+                continue
+            collapses_alive.append(collapse)
+            progress = age / collapse["duration"]
+            rect = collapse["rect"]
+            height = max(12, int(rect.height * (1.0 - progress * 0.88)))
+            crushed = pygame.transform.scale(
+                collapse["image"],
+                (rect.width, height),
+            )
+            crushed.set_alpha(int(255 * (1.0 - progress * 0.42)))
+            surface.blit(crushed, (rect.x, rect.bottom - height))
+            dust_y = rect.bottom - min(22, int(progress * 28))
+            for index in range(8):
+                dust_x = rect.left + (index * 17 + collapse["seed"]) % rect.width
+                radius = 4 + (index + int(progress * 8)) % 5
+                pygame.draw.circle(
+                    surface,
+                    (137, 119, 120),
+                    (dust_x, dust_y - index % 3 * 4),
+                    radius,
+                )
+        self._collapses = collapses_alive
+
+        parachutists_alive = []
+        for person in self._parachutists:
+            age = scene_time - person["start"]
+            if age < 0:
+                parachutists_alive.append(person)
+                continue
+            if age >= person["duration"]:
+                continue
+            fall = min(age, 0.18) * 88 + max(0.0, age - 0.18) * 18
+            x = person["x"] + person["drift"] * age
+            y = person["y"] + fall + math.sin(age * 3.0 + person["phase"]) * 2
+            if not (-20 < x < VIRTUAL_W + 20 and y < VIRTUAL_H + 15):
+                continue
+            parachutists_alive.append(person)
+            px, py = int(x), int(y)
+            if age >= 0.12:
+                canopy = [
+                    (px - 11, py - 9),
+                    (px - 9, py - 15),
+                    (px, py - 19),
+                    (px + 9, py - 15),
+                    (px + 11, py - 9),
+                    (px + 6, py - 11),
+                    (px, py - 8),
+                    (px - 6, py - 11),
+                ]
+                pygame.draw.polygon(
+                    surface,
+                    (245, 93, 76),
+                    canopy,
+                )
+                pygame.draw.line(surface, (255, 196, 87), (px, py - 18), (px, py - 9), 2)
+                pygame.draw.line(surface, (236, 224, 196), (px - 8, py - 11), (px, py), 1)
+                pygame.draw.line(surface, (236, 224, 196), (px + 8, py - 11), (px, py), 1)
+            pygame.draw.circle(surface, (245, 190, 125), (px, py + 1), 2)
+            pygame.draw.line(surface, (26, 34, 53), (px, py + 3), (px, py + 9), 2)
+            pygame.draw.line(surface, (26, 34, 53), (px, py + 8), (px - 3, py + 12), 1)
+            pygame.draw.line(surface, (26, 34, 53), (px, py + 8), (px + 3, py + 12), 1)
+        self._parachutists = parachutists_alive
+
+        fires_alive = []
+        for fire in self._fires:
+            age = scene_time - fire["start"]
+            plane_age = scene_time - fire["plane_start"]
+            duration = fire["flight_duration"]
+            if age < 0 or plane_age > duration + 1.5:
+                continue
+            fires_alive.append(fire)
+            direction = fire["direction"]
+            progress = max(0.0, min(1.0, plane_age / duration))
+            span = VIRTUAL_W + 120
+            plane_x = (
+                -60 + progress * span
+                if direction > 0
+                else VIRTUAL_W + 60 - progress * span
+            )
+            target_progress = (
+                (fire["x"] + 60) / span
+                if direction > 0
+                else (VIRTUAL_W + 60 - fire["x"]) / span
+            )
+            extinguished = plane_age >= 0 and progress > target_progress + 0.07
+
+            if not extinguished:
+                flame_count = 5
+                for index in range(flame_count):
+                    phase = int(scene_time * 14 + fire["seed"] + index) % 5
+                    flame_x = fire["x"] + (index - 2) * 4
+                    flame_y = fire["y"] - 3 - phase
+                    pygame.draw.polygon(
+                        surface,
+                        (255, 187 if index % 2 else 103, 43),
+                        [
+                            (flame_x - 3, fire["y"] + 3),
+                            (flame_x, flame_y - 6),
+                            (flame_x + 3, fire["y"] + 3),
+                        ],
+                    )
+            elif plane_age < duration + 1.1:
+                steam_age = max(0.0, plane_age - duration * target_progress)
+                for index in range(5):
+                    puff_x = fire["x"] + (index - 2) * 5
+                    puff_y = fire["y"] - int(steam_age * 16) - index * 3
+                    pygame.draw.circle(surface, (178, 205, 214), (puff_x, puff_y), 4 + index % 2)
+
+            if 0.0 <= plane_age <= duration:
+                plane_y = 112 + fire["seed"] % 22
+                self._draw_canadair(
+                    surface,
+                    int(plane_x),
+                    plane_y,
+                    direction,
+                    int(scene_time * 18) % 2,
+                )
+                drop_distance = abs(progress - target_progress)
+                if drop_distance < 0.12:
+                    strength = 1.0 - drop_distance / 0.12
+                    for index in range(9):
+                        start_x = int(plane_x) + (index - 4) * 2
+                        end_x = int(
+                            start_x
+                            + (fire["x"] - start_x) * (0.55 + index * 0.04)
+                        )
+                        end_y = int(
+                            plane_y
+                            + (fire["y"] - plane_y) * strength
+                            + index * 2
+                        )
+                        pygame.draw.line(
+                            surface,
+                            (110, 208, 244),
+                            (start_x, plane_y + 7),
+                            (end_x, end_y),
+                            2,
+                        )
+        self._fires = fires_alive
 
     def draw_damage_effects(self, surface, scene_time):
         """Fumée épaisse et gros débris après impact."""
@@ -2012,11 +2331,12 @@ def draw_scene(
     vsurf.blit(city.mask, (0, 0))
     city.draw_building_life(vsurf, scene_time)
     city.draw_damage_effects(vsurf, scene_time)
+    city.draw_emergency_effects(vsurf, scene_time)
     city.draw_lightning_glow(vsurf, scene_time)
 
     current = _active_player(city, players, banana_active, active_player)
 
-    # Ombre et gorilles.
+    # Gorilles, posés directement sur leur toit.
     for index, player in enumerate(players):
         render_state, reaction, jitter, bob = _gorilla_render_pose(
             player,
@@ -2039,12 +2359,6 @@ def draw_scene(
                 int(player.pos.x) + jitter,
                 int(player.pos.y) - bob,
             )
-        )
-        shadow_width = max(12, rect.w - 12)
-        pygame.draw.rect(
-            vsurf,
-            (26, 17, 38),
-            (rect.centerx - shadow_width // 2, int(player.pos.y) - 2, shadow_width, 3),
         )
         vsurf.blit(image, rect)
         blink = (

@@ -5,6 +5,10 @@
     const MAX_LOGICAL_WIDTH = 920;
     const LOGICAL_HEIGHT = 400;
     let resizeFrame = 0;
+    let canvasRepairFrame = 0;
+    let canvasRepairTimers = [];
+    let viewportSignature = "";
+    let viewportStableSince = 0;
     let installPrompt = null;
     let wakeLock = null;
 
@@ -54,6 +58,16 @@
         const safe = readSafeArea();
         const safeWidth = Math.max(1, width - safe.left - safe.right);
         const safeHeight = Math.max(1, height - safe.top - safe.bottom);
+        const nextSignature = [
+            Math.round(safeWidth),
+            Math.round(safeHeight),
+            Math.round(offsetLeft),
+            Math.round(offsetTop),
+        ].join("x");
+        if (nextSignature !== viewportSignature) {
+            viewportSignature = nextSignature;
+            viewportStableSince = window.performance.now();
+        }
 
         const gameWidth = safeWidth;
         const gameHeight = safeHeight;
@@ -71,6 +85,7 @@
             height: safeHeight,
             logicalWidth,
             logicalHeight: LOGICAL_HEIGHT,
+            stableSince: viewportStableSince,
         };
 
         const values = {
@@ -98,12 +113,58 @@
             width > height && (height <= 430 || width <= 700),
         );
         body.classList.toggle("is-standalone", isStandalone());
+        scheduleCanvasRepair();
     }
 
     function scheduleViewportSync() {
         if (!resizeFrame) {
             resizeFrame = window.requestAnimationFrame(syncViewport);
         }
+    }
+
+    function repairCanvasBackingStore() {
+        canvasRepairFrame = 0;
+        const canvas = document.getElementById("canvas");
+        if (!canvas) return;
+
+        const rect = canvas.getBoundingClientRect();
+        if (rect.width < 2 || rect.height < 2 || canvas.width < 2 || canvas.height < 2) {
+            return;
+        }
+
+        const cssRatio = rect.width / rect.height;
+        const backingRatio = canvas.width / canvas.height;
+        const ratioError = Math.abs(cssRatio - backingRatio) / cssRatio;
+        if (ratioError > 0.015) {
+            const width = Math.max(2, Math.round(rect.width));
+            const height = Math.max(2, Math.round(rect.height));
+            if (typeof window.Module?.setCanvasSize === "function") {
+                window.Module.setCanvasSize(width, height);
+            } else if (typeof window.window_resize === "function") {
+                window.window_resize();
+            }
+        }
+    }
+
+    function scheduleCanvasRepair() {
+        if (!canvasRepairFrame) {
+            canvasRepairFrame = window.requestAnimationFrame(() => {
+                window.requestAnimationFrame(repairCanvasBackingStore);
+            });
+        }
+        for (const timer of canvasRepairTimers) {
+            window.clearTimeout(timer);
+        }
+        // Safari et Pygbag peuvent finir leur redimensionnement à des moments
+        // différents. Quelques vérifications légères couvrent les deux.
+        canvasRepairTimers = [220, 700, 1600, 3200].map((delay, index, delays) => (
+            window.setTimeout(() => {
+                repairCanvasBackingStore();
+                if (index === delays.length - 1) {
+                    canvasRepairTimers = [];
+                }
+            }, delay)
+        ));
     }
 
     function updateFullscreenButton() {
@@ -259,6 +320,8 @@
     });
     window.addEventListener("resize", scheduleViewportSync, { passive: true });
     window.addEventListener("orientationchange", scheduleViewportSync, { passive: true });
+    window.addEventListener("pageshow", scheduleViewportSync, { passive: true });
+    window.addEventListener("load", scheduleViewportSync, { once: true });
     document.addEventListener("fullscreenchange", () => {
         updateFullscreenButton();
         scheduleViewportSync();
@@ -268,8 +331,11 @@
         scheduleViewportSync();
     });
     document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "visible" && (fullscreenElement() || isStandalone())) {
-            requestWakeLock();
+        if (document.visibilityState === "visible") {
+            scheduleViewportSync();
+            if (fullscreenElement() || isStandalone()) {
+                requestWakeLock();
+            }
         }
     });
     if (window.visualViewport) {
@@ -297,6 +363,8 @@
     window.GorillaMobileShell = {
         syncViewport,
         scheduleViewportSync,
+        scheduleCanvasRepair,
+        repairCanvasBackingStore,
         toggleFullscreen,
         showInstallHelp,
     };

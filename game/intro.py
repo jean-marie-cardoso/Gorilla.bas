@@ -20,8 +20,8 @@ async def show_intro(game, duration=0.7):
             if event.type == pygame.QUIT:
                 game.quit_requested = True
                 return False
-            if event.type == pygame.VIDEORESIZE:
-                game.screen = pygame.display.get_surface()
+            if game.is_resize_event(event):
+                game.resize_display(event)
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     game.quit_requested = True

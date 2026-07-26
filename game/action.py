@@ -320,8 +320,8 @@ async def ask_angle_power(game, player):
                 if event.type == pygame.QUIT:
                     game.quit_requested = True
                     return None
-                if event.type == pygame.VIDEORESIZE:
-                    game.screen = pygame.display.get_surface()
+                if game.is_resize_event(event):
+                    game.resize_display(event)
                     continue
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:

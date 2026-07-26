@@ -1,4 +1,4 @@
-const CACHE_NAME = "gorillas-shell-v24";
+const CACHE_NAME = "gorillas-shell-v30";
 const APP_SHELL = [
     "./",
     "./index.html",

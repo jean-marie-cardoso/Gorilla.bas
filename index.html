@@ -1,4 +1,4 @@
-<html lang="fr"><script src="https://pygame-web.github.io/cdn/0.9.3/pythons.js" type=module id="site" data-python="python3.12" data-LINES=42 data-COLUMNS=132 data-os="vtx,snd,gui" async defer>#<!--
+<html lang="fr"><script src="https://pygame-web.github.io/cdn/0.9.3/pythons.js" type=module id="site" data-python="python3.12" data-LINES=42 data-COLUMNS=132 data-os="vtx,snd,gui" defer>#<!--
 
 print("""
 Loading gorilla.version.web from gorilla.version.web.apk
@@ -30,7 +30,7 @@ async def custom_site():
 
 
     bundle = "gorilla.version.web"
-    archive_version = "qbasic-deluxe-24"
+    archive_version = "qbasic-deluxe-30"
 
     # the C or js loader could do that but be explicit.
     appdir = Path(f"/data/data/{bundle}") # /data/data/gorilla.version.web
@@ -91,6 +91,16 @@ async def custom_site():
     # but we need to fill __file__/__name__ that are not yet set
     __import__(__name__).__file__ = main
 
+    # Safari change parfois encore la hauteur utile pendant son animation de
+    # démarrage. On lance Pygame seulement quand le viewport est stable.
+    for _ in range(30):
+        metrics = getattr(platform.window, "GorillaViewport", None)
+        stable_since = float(getattr(metrics, "stableSince", 0) or 0)
+        now = float(platform.window.performance.now())
+        if stable_since and now - stable_since >= 350:
+            break
+        await asyncio.sleep(.05)
+
 
     def ui_callback(pkg):
         platform.document.getElementById("status").innerText = f"Preparation de {pkg}..."
@@ -105,6 +115,7 @@ async def custom_site():
     platform.window.canvas.style.visibility = "visible"
     platform.window.config.gui_divider = 1
     platform.window.window_resize()
+    platform.window.GorillaMobileShell.scheduleCanvasRepair()
     print("default.tmpl: done")
 
     shell.interactive()
@@ -357,7 +368,7 @@ function show_loader() {
            border: 1px solid black;
         }
     </style>
-    <link rel="stylesheet" href="mobile-shell.css?v=24">
+    <link rel="stylesheet" href="mobile-shell.css?v=30">
 
     <script>
 /*
@@ -482,6 +493,8 @@ frameborder="1"
             canvas3d.style.visibility = "hidden";
             canvas3d.style.pointerEvents = "none";
         }
+        window.GorillaMobileShell?.scheduleViewportSync();
+        window.GorillaMobileShell?.scheduleCanvasRepair();
     }
 
     function schedule_game_resize() {
@@ -554,7 +567,7 @@ frameborder="1"
     }
 
     </script>
-    <script src="mobile-shell.js?v=24"></script>
+    <script src="mobile-shell.js?v=30"></script>
 
 </body>
 </html>

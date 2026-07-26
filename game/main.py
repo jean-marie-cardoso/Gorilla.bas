@@ -110,6 +110,8 @@ class Game:
         self._shot_min_distances = [float("inf"), float("inf")]
         self.city_intro_pending = False
         self._last_thunder_cycle = -1
+        self._parachute_warning_for_shot = False
+        self._impact_preview_timer = 0.0
 
     def toggle_fullscreen(self):
         # En web, le conteneur HTML gère la taille. En natif, F/F11 fonctionne.
@@ -125,8 +127,59 @@ class Game:
                 pygame.RESIZABLE,
             )
 
+    @staticmethod
+    def is_resize_event(event):
+        resize_types = {
+            pygame.VIDEORESIZE,
+            getattr(pygame, "WINDOWRESIZED", -1),
+            getattr(pygame, "WINDOWSIZECHANGED", -2),
+        }
+        return event.type in resize_types
+
+    @staticmethod
+    def browser_viewport_size():
+        try:
+            import platform
+
+            metrics = getattr(platform.window, "GorillaViewport", None)
+            size = (
+                int(float(getattr(metrics, "width", 0))),
+                int(float(getattr(metrics, "height", 0))),
+            )
+            return size if min(size) >= 2 else None
+        except (AttributeError, TypeError, ValueError):
+            return None
+
+    def sync_browser_display(self):
+        size = self.browser_viewport_size()
+        if size and self.screen.get_size() != size:
+            try:
+                self.screen = pygame.display.set_mode(size, pygame.RESIZABLE)
+            except pygame.error:
+                pass
+
+    def resize_display(self, event):
+        """Aligne la surface Pygame sur la nouvelle taille du canevas."""
+        size = self.browser_viewport_size()
+        if not size or min(size) < 2:
+            size = getattr(event, "size", None)
+        if not size:
+            size = (
+                getattr(event, "w", getattr(event, "x", 0)),
+                getattr(event, "h", getattr(event, "y", 0)),
+            )
+        width, height = (max(2, int(value)) for value in size)
+        try:
+            self.screen = pygame.display.set_mode(
+                (width, height),
+                pygame.RESIZABLE,
+            )
+        except pygame.error:
+            self.screen = pygame.display.get_surface()
+
     def blit_scaled(self, shake=(0, 0)):
         """Agrandit sans déformer le monde logique."""
+        self.sync_browser_display()
         screen_w, screen_h = self.screen.get_size()
         if screen_w <= 0 or screen_h <= 0:
             return
@@ -206,6 +259,8 @@ class Game:
         self.sun_expression = "happy"
         self.city_intro_pending = True
         self._last_thunder_cycle = -1
+        self._parachute_warning_for_shot = False
+        self._impact_preview_timer = 0.0
 
     def reset_match(self):
         for player in self.players:
@@ -301,8 +356,8 @@ class Game:
         if event.type == pygame.QUIT:
             self.quit_requested = True
             return "quit"
-        if event.type == pygame.VIDEORESIZE:
-            self.screen = pygame.display.get_surface()
+        if self.is_resize_event(event):
+            self.resize_display(event)
         if event.type == pygame.KEYDOWN:
             if event.key in (pygame.K_F11, pygame.K_f):
                 self.toggle_fullscreen()
@@ -520,6 +575,8 @@ class Game:
         self._throw_pose_timer = 0.28
         self._ignore_self_index = self.current_player
         self._ignore_self_timer = 0.22
+        self._parachute_warning_for_shot = False
+        self._impact_preview_timer = 0.0
         self.status_message = ""
         self.sound.play("throw")
         self._vibrate(14)
@@ -587,6 +644,43 @@ class Game:
                 result = (hit_t, index, center)
         return result
 
+    def _preview_building_impact(self):
+        """Cherche brièvement devant la banane pour lancer l'évacuation."""
+        if (
+            self._parachute_warning_for_shot
+            or not self.banana_active
+            or self.banana_vel.y < 25
+        ):
+            return
+        position = self.banana_pos.copy()
+        velocity = self.banana_vel.copy()
+        preview_step = 1.0 / 30.0
+        for _ in range(27):
+            next_position, velocity = step_ballistic(
+                position,
+                velocity,
+                self.gravity,
+                self.wind,
+                WIND_ACCEL_PER_UNIT,
+                preview_step,
+            )
+            hit = first_segment_collision(
+                position,
+                next_position,
+                self._solid_at,
+                max_spacing=2.5,
+            )
+            if hit is not None:
+                impact, _ = hit
+                self.city.launch_parachutists(
+                    impact,
+                    self.scene_time,
+                    direction=1 if self.banana_vel.x >= 0 else -1,
+                )
+                self._parachute_warning_for_shot = True
+                return
+            position = next_position
+
     async def update_banana(self, dt):
         if not self.banana_active:
             return None
@@ -644,6 +738,11 @@ class Game:
                 if self._ignore_self_timer <= 0:
                     self._ignore_self_index = None
 
+            self._impact_preview_timer -= step_dt
+            if self._impact_preview_timer <= 0:
+                self._impact_preview_timer = 0.09
+                self._preview_building_impact()
+
             building_hit = first_segment_collision(
                 previous,
                 self.banana_pos,
@@ -682,11 +781,31 @@ class Game:
                 impact, _ = building_hit
                 self.banana_active = False
                 self.players[self.current_player].state = "idle"
+                collapse = self.city.should_collapse_at(impact)
                 explode_in_city(
                     self.city,
                     (int(impact.x), int(impact.y)),
                     scene_time=self.scene_time,
+                    strong=collapse,
                 )
+                collapse_info = (
+                    self.city.collapse_building_at(
+                        impact,
+                        scene_time=self.scene_time,
+                    )
+                    if collapse
+                    else None
+                )
+                if collapse_info is not None:
+                    building_index, _, rubble = collapse_info
+                    for player_index, player in enumerate(self.players):
+                        if player.building_index == building_index:
+                            player.pos.y = rubble.top
+                            self._set_reaction(
+                                player_index,
+                                "scared",
+                                2.4,
+                            )
                 self.shot_path.append(Vector2(impact))
                 target = self.other_player
                 if self._shot_min_distances[target] < 78:
@@ -699,7 +818,7 @@ class Game:
                 )
                 if animation_action:
                     return animation_action
-                return "block"
+                return "collapse" if collapse_info is not None else "block"
 
             if out_of_bounds(self.banana_pos):
                 self.banana_active = False
@@ -940,11 +1059,13 @@ class Game:
             if result in ("quit", "menu"):
                 return result
 
-            shot_resolved = result in ("miss", "block")
+            shot_resolved = result in ("miss", "block", "collapse")
             if result == "miss":
                 self.status_message = "La banane disparaît dans la nuit..."
             elif result == "block":
                 self.status_message = "L'immeuble a pris cher !"
+            elif result == "collapse":
+                self.status_message = "L'immeuble s'effondre !"
             elif result in ("hit_p0", "hit_p1"):
                 hit_index = 0 if result == "hit_p0" else 1
                 if self.is_solo_target_mode():
@@ -984,7 +1105,7 @@ class Game:
                 shot_resolved = True
 
             if shot_resolved:
-                if result in ("miss", "block"):
+                if result in ("miss", "block", "collapse"):
                     reaction_action = await self.show_reaction_pause(1.35)
                     if reaction_action:
                         return reaction_action

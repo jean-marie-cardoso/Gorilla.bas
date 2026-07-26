@@ -19,8 +19,10 @@ class WebShellTests(unittest.TestCase):
                 self.assertEqual(1, content.count('name="viewport"'))
                 self.assertIn('rel="manifest"', content)
                 self.assertIn('rel="apple-touch-icon"', content)
-                self.assertIn("mobile-shell.css?v=24", content)
-                self.assertIn("mobile-shell.js?v=24", content)
+                self.assertIn("mobile-shell.css?v=30", content)
+                self.assertIn("mobile-shell.js?v=30", content)
+                self.assertNotIn(" async defer>", content)
+                self.assertIn('"stableSince", 0', content)
 
     def test_mobile_fullscreen_files_and_manifest(self):
         required = (
@@ -39,8 +41,12 @@ class WebShellTests(unittest.TestCase):
         self.assertIn("requestFullscreen", script)
         self.assertIn("window.GorillaViewport", script)
         self.assertIn("logicalWidth", script)
+        self.assertIn("stableSince", script)
         self.assertIn('screen.orientation.lock("landscape")', script)
         self.assertIn("window.visualViewport", script)
+        self.assertIn("repairCanvasBackingStore", script)
+        self.assertIn("canvas.width / canvas.height", script)
+        self.assertIn("window.Module?.setCanvasSize", script)
         self.assertIn("serviceWorker.register", script)
         self.assertIn("Sur l’écran d’accueil", script)
 

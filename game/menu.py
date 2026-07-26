@@ -427,8 +427,8 @@ async def run_menu(game):
             if event.type == pygame.QUIT:
                 game.quit_requested = True
                 return MENU_QUIT
-            if event.type == pygame.VIDEORESIZE:
-                game.screen = pygame.display.get_surface()
+            if game.is_resize_event(event):
+                game.resize_display(event)
                 continue
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
