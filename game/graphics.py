@@ -375,6 +375,7 @@ class City:
         self._parachutists = []
         self._fires = []
         self._collapses = []
+        self._building_hits = {}
         self._damage_revision = 0
         self._life_checked_revision = -1
         self._banana_trail = []
@@ -477,6 +478,7 @@ class City:
         self._parachutists.clear()
         self._fires.clear()
         self._collapses.clear()
+        self._building_hits.clear()
         choices = [
             name
             for name in ATMOSPHERE_NAMES
@@ -802,10 +804,22 @@ class City:
             return False
         rect = self.rects[index]
         collapse_line = rect.top + max(28, int(rect.height * 0.30))
-        return int(center[1]) >= collapse_line
+        return (
+            self._building_hits.get(index, 0) >= 2
+            or int(center[1]) >= collapse_line
+        )
+
+    def register_building_hit(self, center):
+        """Compte les coups reçus par chaque immeuble."""
+        index = self._building_index_at(center)
+        if index is None:
+            return 0
+        hit_count = self._building_hits.get(index, 0) + 1
+        self._building_hits[index] = hit_count
+        return hit_count
 
     def collapse_building_at(self, center, scene_time=None):
-        """Réduit en gravats un bâtiment touché sous son tiers supérieur."""
+        """Réduit en gravats un bâtiment fragile ou touché deux fois."""
         index = self._building_index_at(center)
         if index is None or not self.should_collapse_at(center):
             return None
@@ -916,77 +930,140 @@ class City:
                     "start": float(scene_time),
                     "seed": seed,
                     "direction": -1 if seed % 2 else 1,
-                    "plane_start": float(scene_time) + 2.0,
-                    "flight_duration": 3.2,
+                    "truck_start": float(scene_time) + 1.7,
+                    "enter_duration": 1.25,
+                    "spray_duration": 1.65,
+                    "exit_duration": 1.25,
                 }
             )
             self._fires = self._fires[-2:]
 
     def launch_parachutists(self, center, scene_time, direction=1):
-        """Fait évacuer quelques habitants du bâtiment menacé."""
+        """Fait sortir les habitants par les côtés du bâtiment menacé."""
         cx, cy = int(center[0]), int(center[1])
         candidates = [
-            rect
-            for rect in self.rects
-            if rect.left <= cx <= rect.right and rect.top <= cy <= rect.bottom
+            (index, rect)
+            for index, rect in enumerate(self.rects)
+            if (
+                rect.left <= cx <= rect.right
+                and rect.top - 24 <= cy <= rect.bottom
+            )
         ]
-        roof_y = min(
-            (rect.top for rect in candidates),
-            default=max(70, cy - 50),
+        if not candidates:
+            return False
+        building_index, building = min(
+            candidates,
+            key=lambda item: abs(item[1].top - cy),
         )
         count = 2 + (abs(cx + self._generation) % 2)
+        preferred_side = 1 if direction >= 0 else -1
+        exit_top = building.top + 26
+        exit_bottom = max(exit_top, building.bottom - 26)
         for index in range(count):
-            side = -1 if index % 2 == 0 else 1
+            side = preferred_side if index % 2 == 0 else -preferred_side
+            exit_y = max(
+                exit_top,
+                min(exit_bottom, max(building.top + 34, cy) + index * 9),
+            )
             self._parachutists.append(
                 {
-                    "x": cx + (index - (count - 1) / 2.0) * 9,
-                    "y": roof_y - 3,
+                    "x": building.right - 3 if side > 0 else building.left + 3,
+                    "y": exit_y,
                     "start": float(scene_time) + index * 0.08,
-                    "drift": side * (24 + index * 4) + int(direction) * 6,
+                    "drift": side * (30 + index * 4),
                     "phase": (cx * 0.07 + index * 1.7) % math.tau,
                     "duration": 3.4,
+                    "building_index": building_index,
                 }
             )
         self._parachutists = self._parachutists[-8:]
+        return True
 
     @staticmethod
-    def _draw_canadair(surface, x, y, direction, propeller_phase):
+    def _draw_fire_truck(surface, x, y, direction, light_on):
+        """Petit camion lisible, dessiné avec peu de formes."""
         sign = 1 if direction >= 0 else -1
-        body = (247, 205, 56)
-        shade = (205, 77, 54)
-        ink = (30, 38, 55)
-        points = [
-            (x - sign * 21, y),
-            (x + sign * 17, y - 3),
-            (x + sign * 23, y),
-            (x + sign * 17, y + 4),
-            (x - sign * 21, y + 4),
-        ]
-        pygame.draw.polygon(surface, body, points)
-        pygame.draw.line(surface, shade, (x - 18, y + 2), (x + 17, y + 2), 2)
-        pygame.draw.polygon(
+        ink = (26, 33, 47)
+        red = (210, 48, 43)
+        bright_red = (242, 68, 48)
+        body_rect = pygame.Rect(x - 24, y - 15, 48, 14)
+        pygame.draw.rect(surface, ink, body_rect.inflate(2, 2))
+        pygame.draw.rect(surface, red, body_rect)
+
+        cabin_left = x + 7 if sign > 0 else x - 22
+        cabin = pygame.Rect(cabin_left, y - 25, 15, 13)
+        pygame.draw.rect(surface, ink, cabin.inflate(2, 2))
+        pygame.draw.rect(surface, bright_red, cabin)
+        window_left = cabin.left + (6 if sign > 0 else 2)
+        pygame.draw.rect(
             surface,
-            body,
-            [(x - 5, y + 1), (x - 16, y + 11), (x + 11, y + 3)],
+            (151, 215, 231),
+            (window_left, cabin.top + 3, 6, 5),
         )
-        pygame.draw.polygon(
-            surface,
-            ink,
-            [(x - sign * 18, y), (x - sign * 22, y - 8), (x - sign * 13, y)],
-        )
-        nose_x = x + sign * 24
+
+        pygame.draw.rect(surface, (240, 231, 195), (x - 20, y - 12, 18, 5))
         pygame.draw.line(
             surface,
-            (220, 235, 241),
-            (nose_x, y - 6 - propeller_phase),
-            (nose_x, y + 8 + propeller_phase),
-            2,
+            (224, 229, 223),
+            (x - 19, y - 22),
+            (x + 9, y - 22),
+            3,
         )
-        pygame.draw.circle(surface, ink, (x - 10, y + 6), 2)
-        pygame.draw.circle(surface, ink, (x + 10, y + 6), 2)
+        for rung in range(5):
+            rung_x = x - 17 + rung * 6
+            pygame.draw.line(
+                surface,
+                (112, 126, 132),
+                (rung_x, y - 25),
+                (rung_x, y - 19),
+                1,
+            )
+
+        pygame.draw.circle(surface, ink, (x - 14, y), 6)
+        pygame.draw.circle(surface, ink, (x + 15, y), 6)
+        pygame.draw.circle(surface, (151, 161, 166), (x - 14, y), 2)
+        pygame.draw.circle(surface, (151, 161, 166), (x + 15, y), 2)
+        pygame.draw.rect(surface, (255, 222, 92), (x + sign * 22 - 2, y - 11, 3, 4))
+        light_color = (88, 220, 255) if light_on else (32, 102, 164)
+        pygame.draw.rect(surface, light_color, (x - 3, y - 28, 7, 4))
+
+    @staticmethod
+    def _draw_water_jet(surface, start, target, scene_time):
+        """Jet courbe animé entre le camion et le feu."""
+        start_x, start_y = start
+        target_x, target_y = target
+        for index in range(3):
+            offset = (index - 1) * 2
+            points = []
+            for step in range(9):
+                progress = step / 8.0
+                x = start_x + (target_x - start_x) * progress
+                y = (
+                    start_y
+                    + (target_y - start_y) * progress
+                    - math.sin(progress * math.pi) * 24
+                )
+                wave = math.sin(scene_time * 18 + step * 1.5 + index) * 1.4
+                points.append((int(x), int(y + offset + wave)))
+            pygame.draw.lines(
+                surface,
+                (119, 220, 247) if index != 1 else (219, 248, 255),
+                False,
+                points,
+                2,
+            )
+        pygame.draw.polygon(
+            surface,
+            (178, 231, 244),
+            [
+                (target_x - 4, target_y - 2),
+                (target_x + 5, target_y),
+                (target_x, target_y + 5),
+            ],
+        )
 
     def draw_emergency_effects(self, surface, scene_time):
-        """Parachutistes, incendies et Canadairs, avec listes très limitées."""
+        """Parachutistes, incendies et pompiers, avec listes très limitées."""
         collapses_alive = []
         for collapse in self._collapses:
             age = scene_time - collapse["start"]
@@ -1060,25 +1137,16 @@ class City:
         fires_alive = []
         for fire in self._fires:
             age = scene_time - fire["start"]
-            plane_age = scene_time - fire["plane_start"]
-            duration = fire["flight_duration"]
-            if age < 0 or plane_age > duration + 1.5:
+            truck_age = scene_time - fire["truck_start"]
+            enter_duration = fire["enter_duration"]
+            spray_duration = fire["spray_duration"]
+            exit_duration = fire["exit_duration"]
+            total_duration = enter_duration + spray_duration + exit_duration
+            if age < 0 or truck_age > total_duration + 0.9:
                 continue
             fires_alive.append(fire)
             direction = fire["direction"]
-            progress = max(0.0, min(1.0, plane_age / duration))
-            span = VIRTUAL_W + 120
-            plane_x = (
-                -60 + progress * span
-                if direction > 0
-                else VIRTUAL_W + 60 - progress * span
-            )
-            target_progress = (
-                (fire["x"] + 60) / span
-                if direction > 0
-                else (VIRTUAL_W + 60 - fire["x"]) / span
-            )
-            extinguished = plane_age >= 0 and progress > target_progress + 0.07
+            extinguished = truck_age >= enter_duration + 0.72
 
             if not extinguished:
                 flame_count = 5
@@ -1095,43 +1163,50 @@ class City:
                             (flame_x + 3, fire["y"] + 3),
                         ],
                     )
-            elif plane_age < duration + 1.1:
-                steam_age = max(0.0, plane_age - duration * target_progress)
+            elif truck_age < total_duration + 0.65:
+                steam_age = max(0.0, truck_age - enter_duration - 0.72)
                 for index in range(5):
                     puff_x = fire["x"] + (index - 2) * 5
                     puff_y = fire["y"] - int(steam_age * 16) - index * 3
                     pygame.draw.circle(surface, (178, 205, 214), (puff_x, puff_y), 4 + index % 2)
 
-            if 0.0 <= plane_age <= duration:
-                plane_y = 112 + fire["seed"] % 22
-                self._draw_canadair(
-                    surface,
-                    int(plane_x),
-                    plane_y,
-                    direction,
-                    int(scene_time * 18) % 2,
+            if 0.0 <= truck_age <= total_duration:
+                road_y = VIRTUAL_H - 8
+                start_x = -38 if direction > 0 else VIRTUAL_W + 38
+                end_x = VIRTUAL_W + 38 if direction > 0 else -38
+                stop_x = max(
+                    45,
+                    min(
+                        VIRTUAL_W - 45,
+                        fire["x"] - direction * 68,
+                    ),
                 )
-                drop_distance = abs(progress - target_progress)
-                if drop_distance < 0.12:
-                    strength = 1.0 - drop_distance / 0.12
-                    for index in range(9):
-                        start_x = int(plane_x) + (index - 4) * 2
-                        end_x = int(
-                            start_x
-                            + (fire["x"] - start_x) * (0.55 + index * 0.04)
-                        )
-                        end_y = int(
-                            plane_y
-                            + (fire["y"] - plane_y) * strength
-                            + index * 2
-                        )
-                        pygame.draw.line(
-                            surface,
-                            (110, 208, 244),
-                            (start_x, plane_y + 7),
-                            (end_x, end_y),
-                            2,
-                        )
+                if truck_age < enter_duration:
+                    progress = truck_age / enter_duration
+                    progress = progress * progress * (3.0 - 2.0 * progress)
+                    truck_x = start_x + (stop_x - start_x) * progress
+                elif truck_age < enter_duration + spray_duration:
+                    truck_x = stop_x
+                    nozzle_x = int(truck_x + direction * 10)
+                    self._draw_water_jet(
+                        surface,
+                        (nozzle_x, road_y - 27),
+                        (fire["x"], fire["y"]),
+                        scene_time,
+                    )
+                else:
+                    progress = (
+                        truck_age - enter_duration - spray_duration
+                    ) / exit_duration
+                    progress = progress * progress * (3.0 - 2.0 * progress)
+                    truck_x = stop_x + (end_x - stop_x) * progress
+                self._draw_fire_truck(
+                    surface,
+                    int(truck_x),
+                    road_y,
+                    direction,
+                    int(scene_time * 8) % 2 == 0,
+                )
         self._fires = fires_alive
 
     def draw_damage_effects(self, surface, scene_time):

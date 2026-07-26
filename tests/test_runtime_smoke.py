@@ -175,12 +175,30 @@ class RuntimeSmokeTests(unittest.TestCase):
         )
         self.game.city.draw_damage_effects(self.game.vsurf, 2.5)
 
-    def test_parachutists_fire_and_canadair_stay_bounded(self):
+    def test_parachutists_fire_and_truck_stay_bounded(self):
         city = self.game.city
+        building = city.rects[len(city.rects) // 2]
         for _ in range(5):
-            city.launch_parachutists((320, 250), 2.0, direction=1)
+            launched = city.launch_parachutists(
+                (building.centerx, building.top + 35),
+                2.0,
+                direction=1,
+            )
+            self.assertTrue(launched)
         self.assertGreaterEqual(len(city._parachutists), 2)
         self.assertLessEqual(len(city._parachutists), 8)
+        for person in city._parachutists:
+            source = city.rects[person["building_index"]]
+            self.assertIn(
+                int(person["x"]),
+                (source.left + 3, source.right - 3),
+            )
+            self.assertGreaterEqual(person["y"], source.top + 26)
+        before = len(city._parachutists)
+        self.assertFalse(
+            city.launch_parachutists((-100, 20), 2.0, direction=1)
+        )
+        self.assertEqual(before, len(city._parachutists))
 
         for offset in range(10):
             city.add_damage_effect(
@@ -192,6 +210,8 @@ class RuntimeSmokeTests(unittest.TestCase):
                 break
         self.assertTrue(city._fires)
         self.assertLessEqual(len(city._fires), 2)
+        self.assertIn("truck_start", city._fires[-1])
+        self.assertNotIn("plane_start", city._fires[-1])
         for scene_time in (2.1, 3.0, 4.8, 7.5):
             city.draw_emergency_effects(self.game.vsurf, scene_time)
 
@@ -216,6 +236,27 @@ class RuntimeSmokeTests(unittest.TestCase):
         self.assertEqual(original.bottom, rubble.bottom)
         self.assertTrue(city._collapses)
         city.draw_emergency_effects(self.game.vsurf, 1.5)
+
+    def test_second_building_hit_forces_collapse(self):
+        city = self.game.city
+        index = max(
+            range(len(city.rects)),
+            key=lambda item: city.rects[item].height,
+        )
+        original = city.rects[index].copy()
+        high_impact = (original.centerx, original.top + 8)
+
+        self.assertEqual(1, city.register_building_hit(high_impact))
+        self.assertFalse(city.should_collapse_at(high_impact))
+        self.assertEqual(2, city.register_building_hit(high_impact))
+        self.assertTrue(city.should_collapse_at(high_impact))
+
+        collapse = city.collapse_building_at(
+            high_impact,
+            scene_time=1.0,
+        )
+        self.assertIsNotNone(collapse)
+        self.assertEqual(index, collapse[0])
 
     def test_descending_banana_warns_parachutists(self):
         building = self.game.city.rects[len(self.game.city.rects) // 2]

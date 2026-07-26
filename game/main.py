@@ -672,13 +672,14 @@ class Game:
             )
             if hit is not None:
                 impact, _ = hit
-                self.city.launch_parachutists(
+                launched = self.city.launch_parachutists(
                     impact,
                     self.scene_time,
                     direction=1 if self.banana_vel.x >= 0 else -1,
                 )
-                self._parachute_warning_for_shot = True
-                return
+                if launched:
+                    self._parachute_warning_for_shot = True
+                    return
             position = next_position
 
     async def update_banana(self, dt):
@@ -781,6 +782,7 @@ class Game:
                 impact, _ = building_hit
                 self.banana_active = False
                 self.players[self.current_player].state = "idle"
+                self.city.register_building_hit(impact)
                 collapse = self.city.should_collapse_at(impact)
                 explode_in_city(
                     self.city,
