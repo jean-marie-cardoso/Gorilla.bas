@@ -19,8 +19,8 @@ class WebShellTests(unittest.TestCase):
                 self.assertEqual(1, content.count('name="viewport"'))
                 self.assertIn('rel="manifest"', content)
                 self.assertIn('rel="apple-touch-icon"', content)
-                self.assertIn("mobile-shell.css?v=32", content)
-                self.assertIn("mobile-shell.js?v=32", content)
+                self.assertIn("mobile-shell.css?v=33", content)
+                self.assertIn("mobile-shell.js?v=33", content)
                 self.assertNotIn(" async defer>", content)
                 self.assertIn('"stableSince", 0', content)
 

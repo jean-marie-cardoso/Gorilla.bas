@@ -260,8 +260,8 @@ CITY_STYLES = {
     "paris": {
         "label": "PARIS",
         "tagline": "MANSARDES • TOUR EIFFEL",
-        "count": (15, 20),
-        "height": (76, 148),
+        "count": (14, 18),
+        "height": (58, 220),
         "roofs": ("mansard", "chimney", "mansard", "lip"),
         "trim": (1, 1, 0),
         "tint": (122, 91, 91),
@@ -280,8 +280,8 @@ CITY_STYLES = {
     "seaside": {
         "label": "BORD DE MER",
         "tagline": "OCÉAN • PHARE • PALMIERS",
-        "count": (12, 17),
-        "height": (54, 112),
+        "count": (12, 16),
+        "height": (42, 214),
         "roofs": ("solar", "chimney", "lip", "tank"),
         "trim": (0, 1, 1),
         "tint": (145, 126, 118),
@@ -530,12 +530,13 @@ class City:
                     height = rng.randint(middle + 8, high)
             elif self.city_style_name == "paris":
                 paris_bands = (
-                    (low, min(high, low + 24)),
-                    (max(low, high - 24), high),
-                    (low + 20, high - 18),
+                    (low, low + 28),
+                    (high - 34, high),
+                    (low + 42, low + 78),
+                    (high - 82, high - 44),
                 )
                 band_low, band_high = paris_bands[index % len(paris_bands)]
-                height = rng.randint(band_low, max(band_low, band_high))
+                height = rng.randint(band_low, band_high)
             elif self.city_style_name == "tokyo":
                 if index % 5 == 2:
                     height = rng.randint(max(low, 205), high)
@@ -543,12 +544,13 @@ class City:
                     height = rng.randint(low, min(high, 128))
             elif self.city_style_name == "seaside":
                 seaside_bands = (
-                    (low, min(high, low + 15)),
-                    (max(low, high - 18), high),
-                    (low + 14, high - 14),
+                    (low, low + 26),
+                    (high - 36, high),
+                    (low + 42, low + 82),
+                    (high - 88, high - 48),
                 )
                 band_low, band_high = seaside_bands[index % len(seaside_bands)]
-                height = rng.randint(band_low, max(band_low, band_high))
+                height = rng.randint(band_low, band_high)
             elif self.city_style_name == "future":
                 if index % 4 == 1:
                     height = rng.randint(max(low, 224), high)
@@ -572,7 +574,12 @@ class City:
 
         # Sécurité gameplay : une ville doit toujours avoir un toit bas et
         # un toit haut dans les zones où les joueurs peuvent apparaître.
-        required_spread = min(58, high - low - 4)
+        wanted_spread = (
+            132
+            if self.city_style_name in ("paris", "seaside")
+            else 58
+        )
+        required_spread = min(wanted_spread, high - low - 4)
         if max(heights) - min(heights) < required_spread:
             heights[1] = low + 2
             heights[-2] = high - 2
@@ -873,6 +880,20 @@ class City:
             )
 
         self.rects[index] = rubble
+        for effect in (*self._smoke_plumes, *self._fires):
+            attached = effect.get("building_index") == index
+            inside = old_rect.collidepoint(
+                int(effect["x"]),
+                int(effect["y"]),
+            )
+            if not attached and not inside:
+                continue
+            effect["building_index"] = index
+            effect["x"] = max(
+                rubble.left + 6,
+                min(rubble.right - 7, int(effect["x"])),
+            )
+            effect["y"] = rubble.top - 2
         self._damage_revision += 1
         if scene_time is not None:
             self._collapses.append(
@@ -890,10 +911,12 @@ class City:
     def add_damage_effect(self, center, scene_time, strong=False):
         cx, cy = int(center[0]), int(center[1])
         seed = (cx * 31 + cy * 17) % 97
+        building_index = self._building_index_at((cx, cy))
         self._smoke_plumes.append(
             {
                 "x": cx,
                 "y": cy,
+                "building_index": building_index,
                 "start": float(scene_time),
                 "duration": 8.0 if strong else 6.2,
                 "seed": seed,
@@ -928,6 +951,7 @@ class City:
                 {
                     "x": cx,
                     "y": cy,
+                    "building_index": building_index,
                     "start": float(scene_time),
                     "seed": seed,
                     "direction": -1 if seed % 2 else 1,

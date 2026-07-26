@@ -156,6 +156,11 @@ class RuntimeSmokeTests(unittest.TestCase):
             roofs.update(style["roof"] for style in self.game.city._styles)
             heights = [rect.height for rect in self.game.city.rects]
             self.assertGreaterEqual(max(heights) - min(heights), 42)
+            if self.game.city.city_style_name in ("paris", "seaside"):
+                self.assertGreaterEqual(
+                    max(heights) - min(heights),
+                    132,
+                )
 
         self.assertEqual(set(CITY_STYLES), seen)
         self.assertTrue(
@@ -278,6 +283,31 @@ class RuntimeSmokeTests(unittest.TestCase):
         )
         self.assertIsNotNone(collapse)
         self.assertEqual(index, collapse[0])
+
+    def test_fire_and_smoke_fall_onto_collapsed_rubble(self):
+        city = self.game.city
+        index = max(
+            range(len(city.rects)),
+            key=lambda item: city.rects[item].height,
+        )
+        building = city.rects[index]
+        impact = (building.centerx, building.centery)
+        fire = {
+            "x": impact[0],
+            "y": impact[1],
+            "building_index": index,
+        }
+        smoke = dict(fire)
+        city._fires.append(fire)
+        city._smoke_plumes.append(smoke)
+
+        collapse = city.collapse_building_at(impact, scene_time=1.0)
+
+        self.assertIsNotNone(collapse)
+        rubble = collapse[2]
+        self.assertEqual(rubble.top - 2, fire["y"])
+        self.assertEqual(rubble.top - 2, smoke["y"])
+        self.assertTrue(rubble.left < fire["x"] < rubble.right)
 
     def test_descending_banana_warns_parachutists(self):
         building = self.game.city.rects[len(self.game.city.rects) // 2]
