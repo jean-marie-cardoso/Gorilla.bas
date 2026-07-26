@@ -804,9 +804,10 @@ class City:
             return False
         rect = self.rects[index]
         collapse_line = rect.top + max(28, int(rect.height * 0.30))
+        crater_bottom = int(center[1]) + EXPLOSION_RADIUS + 5
         return (
             self._building_hits.get(index, 0) >= 2
-            or int(center[1]) >= collapse_line
+            or crater_bottom >= collapse_line
         )
 
     def register_building_hit(self, center):

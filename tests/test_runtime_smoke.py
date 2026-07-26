@@ -26,11 +26,13 @@ class RuntimeSmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from action import ask_angle_power
+        from config import EXPLOSION_RADIUS
         from graphics import draw_explosion_frame, explode_in_city
         from main import Game
         from menu import MODE_SOLO_AI, _draw_menu, run_menu
 
         cls.Game = Game
+        cls.EXPLOSION_RADIUS = EXPLOSION_RADIUS
         cls.MODE_SOLO_AI = MODE_SOLO_AI
         cls.ask_angle_power = staticmethod(ask_angle_power)
         cls.draw_explosion_frame = staticmethod(draw_explosion_frame)
@@ -236,6 +238,25 @@ class RuntimeSmokeTests(unittest.TestCase):
         self.assertEqual(original.bottom, rubble.bottom)
         self.assertTrue(city._collapses)
         city.draw_emergency_effects(self.game.vsurf, 1.5)
+
+    def test_crater_edge_can_force_building_collapse(self):
+        city = self.game.city
+        index = max(
+            range(len(city.rects)),
+            key=lambda item: city.rects[item].height,
+        )
+        building = city.rects[index]
+        collapse_line = building.top + max(
+            28,
+            int(building.height * 0.30),
+        )
+        impact = (
+            building.centerx,
+            collapse_line - self.EXPLOSION_RADIUS - 5,
+        )
+
+        self.assertLess(impact[1], collapse_line)
+        self.assertTrue(city.should_collapse_at(impact))
 
     def test_second_building_hit_forces_collapse(self):
         city = self.game.city
